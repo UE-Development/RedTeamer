@@ -46,13 +46,7 @@ export type ToolCategory =
   | 'cloud'
   | 'ctf'
   | 'osint'
-  | 'password'
-  | 'network_recon'
-  | 'web_app_security'
-  | 'password_auth'
-  | 'binary_analysis'
-  | 'cloud_security'
-  | 'ctf_forensics';
+  | 'password';
 
 export interface ToolParameter {
   name: string;
