@@ -108,6 +108,32 @@ graph TD
 
 ---
 
+## 🎨 Modern Web Frontend (NEW!)
+
+HexStrike AI v6.0 now includes a modern React + TypeScript frontend with Agent Interface!
+
+![Frontend Dashboard](https://github.com/user-attachments/assets/26930a74-463d-4731-a1ca-2cd486aebf15)
+
+### Features
+- **🤖 Agent Interface** - Seamless communication with AI agents
+- **📊 Real-time Dashboard** - Live monitoring of security assessments
+- **🛠️ Tool Management** - Browse and execute 150+ security tools
+- **🔍 Scan Management** - Create and monitor security scans
+- **🐛 Vulnerability Tracking** - Manage discovered vulnerabilities
+- **📄 Report Generation** - Generate comprehensive security reports
+
+### Quick Start
+```bash
+cd frontend
+npm install
+npm run dev
+# Visit http://localhost:3000
+```
+
+See [FRONTEND_SETUP.md](FRONTEND_SETUP.md) for detailed documentation.
+
+---
+
 ## Installation
 
 ### Quick Setup to Run the hexstrike MCPs Server
