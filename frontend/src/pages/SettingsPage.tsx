@@ -26,6 +26,8 @@ import {
   Card,
   CardContent,
   InputAdornment,
+  Autocomplete,
+  ListSubheader,
 } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
 import DnsIcon from '@mui/icons-material/Dns';
@@ -43,6 +45,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
+import StarIcon from '@mui/icons-material/Star';
 import { useAppSelector, useAppDispatch } from '../store';
 import {
   setMCPServerSettings,
@@ -55,6 +58,84 @@ import {
   resetSettings,
 } from '../store/slices/settingsSlice';
 import { apiClient } from '../services/api';
+
+// OpenRouter model definitions with categories
+interface AIModel {
+  id: string;
+  name: string;
+  category: 'recommended' | 'anthropic' | 'openai' | 'google' | 'meta' | 'mistral' | 'other';
+  description?: string;
+}
+
+const AI_MODELS: AIModel[] = [
+  // Recommended / Top Choices
+  { id: 'anthropic/claude-3.5-sonnet', name: '🌟 Claude 3.5 Sonnet', category: 'recommended', description: 'Best for security analysis' },
+  { id: 'openai/gpt-4o', name: '🌟 GPT-4o', category: 'recommended', description: 'Fastest GPT-4 model' },
+  { id: 'anthropic/claude-3-opus', name: '🌟 Claude 3 Opus', category: 'recommended', description: 'Most capable model' },
+  { id: 'google/gemini-pro-1.5', name: '🌟 Gemini Pro 1.5', category: 'recommended', description: 'Long context window' },
+  
+  // Anthropic Models
+  { id: 'anthropic/claude-3.5-sonnet:beta', name: 'Claude 3.5 Sonnet (Beta)', category: 'anthropic' },
+  { id: 'anthropic/claude-3-sonnet', name: 'Claude 3 Sonnet', category: 'anthropic' },
+  { id: 'anthropic/claude-3-haiku', name: 'Claude 3 Haiku', category: 'anthropic', description: 'Fast and efficient' },
+  { id: 'anthropic/claude-2.1', name: 'Claude 2.1', category: 'anthropic' },
+  { id: 'anthropic/claude-2', name: 'Claude 2', category: 'anthropic' },
+  { id: 'anthropic/claude-instant-1.2', name: 'Claude Instant 1.2', category: 'anthropic' },
+  
+  // OpenAI Models
+  { id: 'openai/gpt-4-turbo', name: 'GPT-4 Turbo', category: 'openai' },
+  { id: 'openai/gpt-4-turbo-preview', name: 'GPT-4 Turbo Preview', category: 'openai' },
+  { id: 'openai/gpt-4', name: 'GPT-4', category: 'openai' },
+  { id: 'openai/gpt-4-32k', name: 'GPT-4 32K', category: 'openai' },
+  { id: 'openai/gpt-3.5-turbo', name: 'GPT-3.5 Turbo', category: 'openai' },
+  { id: 'openai/gpt-3.5-turbo-16k', name: 'GPT-3.5 Turbo 16K', category: 'openai' },
+  { id: 'openai/o1-preview', name: 'O1 Preview', category: 'openai', description: 'Reasoning model' },
+  { id: 'openai/o1-mini', name: 'O1 Mini', category: 'openai', description: 'Fast reasoning' },
+  
+  // Google Models
+  { id: 'google/gemini-pro', name: 'Gemini Pro', category: 'google' },
+  { id: 'google/gemini-pro-vision', name: 'Gemini Pro Vision', category: 'google' },
+  { id: 'google/gemini-1.5-pro', name: 'Gemini 1.5 Pro', category: 'google' },
+  { id: 'google/gemini-1.5-flash', name: 'Gemini 1.5 Flash', category: 'google' },
+  { id: 'google/palm-2-chat-bison', name: 'PaLM 2 Chat', category: 'google' },
+  
+  // Meta Llama Models
+  { id: 'meta-llama/llama-3.1-405b-instruct', name: 'Llama 3.1 405B', category: 'meta', description: 'Largest open model' },
+  { id: 'meta-llama/llama-3.1-70b-instruct', name: 'Llama 3.1 70B', category: 'meta' },
+  { id: 'meta-llama/llama-3.1-8b-instruct', name: 'Llama 3.1 8B', category: 'meta' },
+  { id: 'meta-llama/llama-3-70b-instruct', name: 'Llama 3 70B', category: 'meta' },
+  { id: 'meta-llama/llama-3-8b-instruct', name: 'Llama 3 8B', category: 'meta' },
+  { id: 'meta-llama/codellama-70b-instruct', name: 'CodeLlama 70B', category: 'meta', description: 'Code specialist' },
+  
+  // Mistral Models
+  { id: 'mistralai/mistral-large', name: 'Mistral Large', category: 'mistral' },
+  { id: 'mistralai/mistral-medium', name: 'Mistral Medium', category: 'mistral' },
+  { id: 'mistralai/mistral-small', name: 'Mistral Small', category: 'mistral' },
+  { id: 'mistralai/mixtral-8x7b-instruct', name: 'Mixtral 8x7B', category: 'mistral' },
+  { id: 'mistralai/mixtral-8x22b-instruct', name: 'Mixtral 8x22B', category: 'mistral' },
+  { id: 'mistralai/codestral-latest', name: 'Codestral', category: 'mistral', description: 'Code specialist' },
+  
+  // Other Models
+  { id: 'cohere/command-r-plus', name: 'Command R+', category: 'other' },
+  { id: 'cohere/command-r', name: 'Command R', category: 'other' },
+  { id: 'databricks/dbrx-instruct', name: 'DBRX Instruct', category: 'other' },
+  { id: 'deepseek/deepseek-coder', name: 'DeepSeek Coder', category: 'other' },
+  { id: 'deepseek/deepseek-chat', name: 'DeepSeek Chat', category: 'other' },
+  { id: 'perplexity/llama-3.1-sonar-large-128k-online', name: 'Perplexity Sonar Large', category: 'other', description: 'With web search' },
+  { id: 'perplexity/llama-3.1-sonar-small-128k-online', name: 'Perplexity Sonar Small', category: 'other', description: 'With web search' },
+  { id: 'qwen/qwen-2-72b-instruct', name: 'Qwen 2 72B', category: 'other' },
+  { id: '01-ai/yi-large', name: 'Yi Large', category: 'other' },
+];
+
+const CATEGORY_LABELS: Record<string, string> = {
+  recommended: '⭐ TOP CHOICES',
+  anthropic: '🟣 Anthropic',
+  openai: '🟢 OpenAI',
+  google: '🔵 Google',
+  meta: '🟠 Meta Llama',
+  mistral: '🟡 Mistral AI',
+  other: '⚪ Other Models',
+};
 
 const SettingsPage = () => {
   const dispatch = useAppDispatch();
@@ -411,23 +492,73 @@ const SettingsPage = () => {
               </Grid>
 
               <Grid size={12}>
-                <FormControl fullWidth>
-                  <InputLabel>AI Model</InputLabel>
-                  <Select
-                    value={settings.aiProvider.openRouterModel}
-                    label="AI Model"
-                    onChange={(e) => dispatch(setAIProviderSettings({ openRouterModel: e.target.value }))}
-                    disabled={!settings.aiProvider.openRouterEnabled}
-                  >
-                    <MenuItem value="anthropic/claude-3.5-sonnet">🧠 Claude 3.5 Sonnet (Recommended)</MenuItem>
-                    <MenuItem value="anthropic/claude-3-opus">🔬 Claude 3 Opus (Most Capable)</MenuItem>
-                    <MenuItem value="openai/gpt-4-turbo">⚡ GPT-4 Turbo</MenuItem>
-                    <MenuItem value="openai/gpt-4o">🚀 GPT-4o</MenuItem>
-                    <MenuItem value="google/gemini-pro">💎 Gemini Pro</MenuItem>
-                    <MenuItem value="meta-llama/llama-3.1-70b-instruct">🦙 Llama 3.1 70B</MenuItem>
-                    <MenuItem value="mistralai/mixtral-8x7b-instruct">🌪️ Mixtral 8x7B</MenuItem>
-                  </Select>
-                </FormControl>
+                <Autocomplete
+                  options={AI_MODELS}
+                  groupBy={(option) => option.category}
+                  getOptionLabel={(option) => option.name}
+                  value={AI_MODELS.find((m) => m.id === settings.aiProvider.openRouterModel) || AI_MODELS[0]}
+                  onChange={(_, newValue) => {
+                    if (newValue) {
+                      dispatch(setAIProviderSettings({ openRouterModel: newValue.id }));
+                    }
+                  }}
+                  disabled={!settings.aiProvider.openRouterEnabled}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="AI Model"
+                      placeholder="Search models..."
+                      helperText="Search by name or scroll through categories"
+                    />
+                  )}
+                  renderGroup={(params) => (
+                    <li key={params.key}>
+                      <ListSubheader
+                        component="div"
+                        sx={{
+                          bgcolor: 'background.paper',
+                          color: params.group === 'recommended' ? 'warning.main' : 'text.secondary',
+                          fontWeight: 700,
+                          fontSize: '0.75rem',
+                          letterSpacing: '0.1em',
+                          py: 1,
+                          borderBottom: '1px solid',
+                          borderColor: 'divider',
+                        }}
+                      >
+                        {CATEGORY_LABELS[params.group] || params.group}
+                      </ListSubheader>
+                      <ul style={{ padding: 0 }}>{params.children}</ul>
+                    </li>
+                  )}
+                  renderOption={(props, option) => {
+                    const { key, ...otherProps } = props;
+                    return (
+                      <li key={key} {...otherProps}>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', py: 0.5 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="body1">{option.name}</Typography>
+                            {option.category === 'recommended' && (
+                              <StarIcon sx={{ fontSize: 16, color: 'warning.main' }} />
+                            )}
+                          </Box>
+                          {option.description && (
+                            <Typography variant="caption" color="text.secondary">
+                              {option.description}
+                            </Typography>
+                          )}
+                          <Typography variant="caption" color="text.disabled" sx={{ fontFamily: 'monospace' }}>
+                            {option.id}
+                          </Typography>
+                        </Box>
+                      </li>
+                    );
+                  }}
+                  ListboxProps={{
+                    sx: { maxHeight: 400 },
+                  }}
+                  isOptionEqualToValue={(option, value) => option.id === value.id}
+                />
               </Grid>
 
               {settings.aiProvider.openRouterEnabled && settings.aiProvider.openRouterApiKey && (
