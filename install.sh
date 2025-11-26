@@ -163,28 +163,40 @@ main() {
     
     # Activate virtual environment
     log_info "Activating virtual environment..."
-    source "$VENV_DIR/bin/activate"
-    log_success "Virtual environment activated"
+    if [ -f "$VENV_DIR/bin/activate" ]; then
+        source "$VENV_DIR/bin/activate"
+        log_success "Virtual environment activated"
+    else
+        log_error "Virtual environment activation script not found at $VENV_DIR/bin/activate"
+        log_info "Please ensure you are running on a Unix-like system (Linux/macOS)"
+        exit 1
+    fi
     
     log_step "Step 3/6: Installing Python Dependencies"
     
     log_info "Upgrading pip..."
-    pip install --upgrade pip --quiet
+    pip install --upgrade pip --progress-bar off 2>&1 | tail -1
     
     log_info "Installing dependencies from requirements.txt..."
-    pip install -r "$SCRIPT_DIR/requirements.txt" --quiet
-    log_success "Python dependencies installed successfully"
+    if pip install -r "$SCRIPT_DIR/requirements.txt" --progress-bar off 2>&1 | tail -3; then
+        log_success "Python dependencies installed successfully"
+    else
+        log_error "Failed to install Python dependencies. Please check requirements.txt"
+        exit 1
+    fi
     
     log_step "Step 4/6: Installing Frontend Dependencies (Optional)"
     
     if [ "$NODE_AVAILABLE" = true ] && [ -d "$FRONTEND_DIR" ]; then
         log_info "Installing frontend dependencies..."
         cd "$FRONTEND_DIR"
-        npm install --silent 2>/dev/null || {
-            log_warning "Frontend dependency installation failed. You can try manually later."
-        }
+        if npm install --loglevel warn 2>&1 | tail -5; then
+            log_success "Frontend dependencies installed"
+        else
+            log_warning "Frontend dependency installation had issues. Check npm output above."
+            log_info "You can try running 'cd frontend && npm install' manually later."
+        fi
         cd "$SCRIPT_DIR"
-        log_success "Frontend dependencies installed"
     else
         log_info "Skipping frontend installation (Node.js not available or frontend directory missing)"
     fi
@@ -233,7 +245,7 @@ main() {
     
     log_step "Step 6/6: Creating Startup Scripts"
     
-    # Create start-server.sh
+    # Create start-server.sh - uses venv python which points to correct version
     cat > "$SCRIPT_DIR/start-server.sh" << 'EOF'
 #!/bin/bash
 # HexStrike AI - Start Server Script
@@ -248,6 +260,9 @@ else
     echo "Error: Virtual environment not found. Run install.sh first."
     exit 1
 fi
+
+# Use the virtual environment's python (correct version is ensured by installer)
+PYTHON_CMD="$VENV_DIR/bin/python"
 
 # Parse arguments
 PORT="${1:-8888}"
@@ -265,7 +280,7 @@ for arg in "$@"; do
 done
 
 echo "🚀 Starting HexStrike AI Server on port $PORT..."
-python3 "$SCRIPT_DIR/hexstrike_server.py" --port "$PORT" $DEBUG
+"$PYTHON_CMD" "$SCRIPT_DIR/hexstrike_server.py" --port "$PORT" $DEBUG
 EOF
     chmod +x "$SCRIPT_DIR/start-server.sh"
     log_success "Created start-server.sh"
@@ -352,12 +367,12 @@ EOF
     chmod +x "$SCRIPT_DIR/start-all.sh"
     log_success "Created start-all.sh"
     
-    # Generate MCP configuration
+    # Generate MCP configuration - uses venv python (which symlinks to correct version)
     cat > "$SCRIPT_DIR/hexstrike-mcp-config.json" << EOF
 {
   "mcpServers": {
     "hexstrike-ai": {
-      "command": "$VENV_DIR/bin/python3",
+      "command": "$VENV_DIR/bin/python",
       "args": [
         "$SCRIPT_DIR/hexstrike_mcp.py",
         "--server",
