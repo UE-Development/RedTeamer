@@ -8,3 +8,5 @@ export { default as AgentSelectorPanel } from './AgentSelectorPanel';
 export { default as AgentChatInterface } from './AgentChatInterface';
 export { default as CommandInput } from './CommandInput';
 export { default as SmartCommandBuilder } from './SmartCommandBuilder';
+export { default as ConversationHistory } from './ConversationHistory';
+export { default as AgentPerformanceMetrics } from './AgentPerformanceMetrics';

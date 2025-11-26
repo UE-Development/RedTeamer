@@ -229,9 +229,9 @@ The next phase will implement the Agent Interface:
 - [x] Smart command builder for security testing
 - [x] Real-time agent communication
 - [x] Command auto-completion
-- [ ] Conversation history with search
+- [x] Conversation history with search
+- [x] Agent performance metrics
 - [ ] Multi-agent chat support
-- [ ] Agent performance metrics
 
 ### Agent Collaboration View
 - [ ] Multi-agent task visualization
