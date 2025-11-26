@@ -1,0 +1,60 @@
+# HexStrike AI - Git Ignore Configuration
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+hexstrike-env/
+venv/
+ENV/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+hexstrike.log
+
+# Node.js
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+.npm
+
+# Generated startup scripts (created by install.sh)
+start-server.sh
+start-frontend.sh
+start-all.sh
+hexstrike-mcp-config.json
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Test outputs
+/tmp/
+*.tmp

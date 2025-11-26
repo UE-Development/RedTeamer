@@ -16,9 +16,50 @@
 
 **Advanced AI-powered penetration testing MCP framework with 150+ security tools and 12+ autonomous AI agents**
 
-[📋 What's New](#whats-new-in-v60) • [🏗️ Architecture](#architecture-overview) • [🚀 Installation](#installation) • [🛠️ Features](#features) • [🤖 AI Agents](#ai-agents) • [📡 API Reference](#api-reference)
+[⚡ Quick Start](#-quick-start-auto-installer) • [🏗️ Architecture](#architecture-overview) • [🚀 Manual Installation](#installation) • [🛠️ Features](#features) • [🤖 AI Agents](#ai-agents) • [📡 API Reference](#api-reference)
 
 </div>
+
+---
+
+## ⚡ Quick Start (Auto-Installer)
+
+Get started in seconds with the automatic installer - just clone and run!
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/0x4m4/hexstrike-ai.git
+cd hexstrike-ai
+
+# 2. Run the auto-installer
+./install.sh
+
+# 3. Start the server
+./start-server.sh
+```
+
+**That's it!** The installer will automatically:
+- ✅ Check system requirements (Python 3.8+, Node.js)
+- ✅ Create a Python virtual environment
+- ✅ Install all Python dependencies
+- ✅ Install frontend dependencies (if Node.js is available)
+- ✅ Check for available security tools
+- ✅ Create convenient startup scripts
+- ✅ Generate MCP client configuration
+
+### Quick Commands After Installation
+
+| Command | Description |
+|---------|-------------|
+| `./start-server.sh` | Start the HexStrike API server (port 8888) |
+| `./start-frontend.sh` | Start the web frontend (port 3000) |
+| `./start-all.sh` | Start both server and frontend |
+| `./start-server.sh --debug` | Start server in debug mode |
+| `./start-server.sh --port=9999` | Start server on custom port |
+
+### MCP Client Configuration
+
+After installation, copy the content of `hexstrike-mcp-config.json` to your MCP client configuration file.
 
 ---
 
@@ -136,7 +177,28 @@ See [FRONTEND_SETUP.md](FRONTEND_SETUP.md) for detailed documentation.
 
 ## Installation
 
-### Quick Setup to Run the hexstrike MCPs Server
+### ⚡ Recommended: Auto-Installer (One Command)
+
+The easiest way to get started is using the automatic installer:
+
+```bash
+# Clone and run the installer
+git clone https://github.com/0x4m4/hexstrike-ai.git
+cd hexstrike-ai
+./install.sh
+```
+
+The installer automatically sets up everything you need. After installation, simply run:
+
+```bash
+./start-server.sh      # Start the backend server
+./start-frontend.sh    # Start the frontend (optional)
+./start-all.sh         # Start both
+```
+
+### Manual Setup (Alternative)
+
+If you prefer manual installation:
 
 ```bash
 # 1. Clone the repository
