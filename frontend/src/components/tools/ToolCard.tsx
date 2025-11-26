@@ -30,8 +30,8 @@ interface ToolCardProps {
 }
 
 const ToolCard = ({ tool, onLaunch, onConfigure, onToggleFavorite, isFavorite }: ToolCardProps) => {
-  const getCategoryColor = (category: string) => {
-    const colors: Record<string, string> = {
+  const getCategoryColor = (category: string): 'primary' | 'secondary' | 'info' | 'success' | 'warning' | 'error' | 'default' => {
+    const colors: Record<string, 'primary' | 'secondary' | 'info' | 'success' | 'warning' | 'error' | 'default'> = {
       network: 'primary',
       web: 'secondary',
       binary: 'info',
@@ -91,7 +91,7 @@ const ToolCard = ({ tool, onLaunch, onConfigure, onToggleFavorite, isFavorite }:
           <Chip
             label={tool.category}
             size="small"
-            color={getCategoryColor(tool.category) as any}
+            color={getCategoryColor(tool.category)}
             sx={{ textTransform: 'capitalize' }}
           />
           {!tool.installed && (

@@ -68,13 +68,13 @@ The frontend foundation has been successfully implemented based on FEATURES.md s
 
 ### 7. Pages
 - ✅ Dashboard page with metrics and activity
-- ✅ AI Agents page (placeholder)
-- ✅ Tools page (placeholder)
-- ✅ Scans page (placeholder)
-- ✅ Vulnerabilities page (placeholder)
-- ✅ Reports page (placeholder)
-- ✅ Projects page (placeholder)
-- ✅ Settings page (placeholder)
+- ✅ AI Agents page with chat interface, multi-agent support, and collaboration view
+- ✅ Tools page with security tools library (150+ tools)
+- ✅ Scans page with real-time monitoring
+- ✅ Vulnerabilities page with filtering and detailed cards
+- ✅ Reports page with report generator
+- ✅ Projects page with project management
+- ✅ Settings page with MCP server, API, theme, and notification settings
 
 ## 🚀 Quick Start
 
@@ -255,6 +255,26 @@ The next phase will implement the Agent Interface:
 - [x] Tabs for Active/Completed/Archived
 - [x] Create new project dialog
 - [x] Archive and delete functionality
+
+### Settings Page ✅
+- [x] MCP Server Configuration with external access toggle
+- [x] Authentication settings with API key generation
+- [x] API Configuration (Base URL, WebSocket URL, Timeout, Retry)
+- [x] Theme Settings (Dark/Light mode, color customization)
+- [x] Notification Settings (sound alerts, critical only, scan complete, vulnerability found)
+- [x] Save and Reset functionality
+- [x] Security warnings for external access
+
+## 📸 Screenshots
+
+### Dashboard
+![Dashboard](https://github.com/user-attachments/assets/ec2a51d1-7455-4c8b-bcbb-46b150a7951d)
+
+### AI Agents Interface
+![AI Agents](https://github.com/user-attachments/assets/3da769d2-6ecc-45ba-a790-cbfee810bbdd)
+
+### Settings Page
+![Settings](https://github.com/user-attachments/assets/cf6b3452-7e31-4941-989c-64b94d8f180f)
 
 ## 📚 Resources
 

@@ -61,9 +61,9 @@ const Sidebar = ({ open, drawerWidth }: SidebarProps) => {
           src="/hexstrike-logo.png"
           alt="HexStrike Logo"
           sx={{ height: 40, width: 'auto' }}
-          onError={(e: any) => {
+          onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
             // Fallback if image not found
-            e.target.style.display = 'none';
+            e.currentTarget.style.display = 'none';
           }}
         />
       </Toolbar>
