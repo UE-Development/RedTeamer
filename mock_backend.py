@@ -179,6 +179,11 @@ def dashboard_metrics():
     })
 
 if __name__ == "__main__":
+    import os
+    
+    # Only enable debug mode if explicitly set via environment variable
+    debug_mode = os.environ.get('FLASK_DEBUG', '0') == '1'
+    
     print("""
 ╔══════════════════════════════════════════════════════════╗
 ║   Mock HexStrike AI Backend Server                      ║
@@ -186,7 +191,9 @@ if __name__ == "__main__":
 ╠══════════════════════════════════════════════════════════╣
 ║   Port: 8888                                             ║
 ║   CORS: Enabled                                          ║
+║   Debug: {}                                       ║
 ║   Status: Ready for frontend development                 ║
 ╚══════════════════════════════════════════════════════════╝
-    """)
-    app.run(host="0.0.0.0", port=8888, debug=True)
+    """.format('Enabled' if debug_mode else 'Disabled'))
+    
+    app.run(host="0.0.0.0", port=8888, debug=debug_mode)
