@@ -80,14 +80,6 @@ const SmartCommandBuilder = ({ onExecuteCommand, selectedAgent }: SmartCommandBu
   };
 
   const generateCommand = (): string => {
-    const params: CommandParams = {
-      target,
-      scanType,
-      tools: selectedTools,
-      outputFormat: outputFormats,
-      schedule,
-    };
-
     let command = `Perform a ${scanType} security scan on ${target}`;
     
     if (selectedTools.length > 0) {
@@ -137,7 +129,7 @@ const SmartCommandBuilder = ({ onExecuteCommand, selectedAgent }: SmartCommandBu
 
         <Grid container spacing={3}>
           {/* Target Input */}
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             <TextField
               fullWidth
               label="Target (Domain, IP, or URL)"
@@ -155,7 +147,7 @@ const SmartCommandBuilder = ({ onExecuteCommand, selectedAgent }: SmartCommandBu
           </Grid>
 
           {/* Scan Type Selector */}
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             <FormControl fullWidth disabled={!selectedAgent}>
               <InputLabel>Scan Type</InputLabel>
               <Select
@@ -178,7 +170,7 @@ const SmartCommandBuilder = ({ onExecuteCommand, selectedAgent }: SmartCommandBu
           </Grid>
 
           {/* Tool Selection */}
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
               Security Tools (optional)
             </Typography>
@@ -234,7 +226,7 @@ const SmartCommandBuilder = ({ onExecuteCommand, selectedAgent }: SmartCommandBu
           </Grid>
 
           {/* Output Format */}
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
               Output Format
             </Typography>
@@ -256,7 +248,7 @@ const SmartCommandBuilder = ({ onExecuteCommand, selectedAgent }: SmartCommandBu
           </Grid>
 
           {/* Schedule Options */}
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             <FormControl fullWidth disabled={!selectedAgent}>
               <InputLabel>Schedule</InputLabel>
               <Select
@@ -275,7 +267,7 @@ const SmartCommandBuilder = ({ onExecuteCommand, selectedAgent }: SmartCommandBu
 
           {/* Command Preview */}
           {showPreview && target && (
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               <Alert severity="info" icon={<CodeIcon />}>
                 <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
                   Generated Command:
@@ -298,7 +290,7 @@ const SmartCommandBuilder = ({ onExecuteCommand, selectedAgent }: SmartCommandBu
           )}
 
           {/* Action Buttons */}
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             <Box sx={{ display: 'flex', gap: 2 }}>
               <Button
                 variant="contained"

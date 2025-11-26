@@ -20,7 +20,6 @@ import {
 } from '@mui/material';
 import BugReportIcon from '@mui/icons-material/BugReport';
 import SearchIcon from '@mui/icons-material/Search';
-import FilterListIcon from '@mui/icons-material/FilterList';
 import { VulnerabilityCard } from '../components/vulnerabilities';
 import type { Vulnerability } from '../types';
 
@@ -263,7 +262,7 @@ const VulnerabilitiesPage = () => {
       {/* Filters */}
       <Paper sx={{ p: 2, mb: 3 }}>
         <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <TextField
               fullWidth
               placeholder="Search vulnerabilities..."
@@ -278,7 +277,7 @@ const VulnerabilitiesPage = () => {
               }}
             />
           </Grid>
-          <Grid item xs={12} md={3}>
+          <Grid size={{ xs: 12, md: 3 }}>
             <FormControl fullWidth>
               <InputLabel>Severity</InputLabel>
               <Select
@@ -295,7 +294,7 @@ const VulnerabilitiesPage = () => {
               </Select>
             </FormControl>
           </Grid>
-          <Grid item xs={12} md={3}>
+          <Grid size={{ xs: 12, md: 3 }}>
             <FormControl fullWidth>
               <InputLabel>Status</InputLabel>
               <Select

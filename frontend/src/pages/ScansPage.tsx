@@ -15,11 +15,9 @@ import {
   Grid,
   Paper,
   List,
-  ListItem,
   ListItemText,
   Divider,
-  IconButton,
-  Tooltip,
+  ListItemButton,
 } from '@mui/material';
 import RadarIcon from '@mui/icons-material/Radar';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
@@ -187,13 +185,12 @@ const ScansPage = () => {
 
       <Grid container spacing={3}>
         {/* Scans List */}
-        <Grid item xs={12} md={5}>
+        <Grid size={{ xs: 12, md: 5 }}>
           <Paper sx={{ height: '70vh', overflow: 'auto' }}>
             <List>
               {scans.map((scan, index) => (
                 <Box key={scan.id}>
-                  <ListItem
-                    button
+                  <ListItemButton
                     selected={selectedScan?.id === scan.id}
                     onClick={() => setSelectedScan(scan)}
                     sx={{
@@ -217,7 +214,7 @@ const ScansPage = () => {
                             label={scan.status}
                             size="small"
                             color={getStatusColor(scan.status) as any}
-                            icon={getStatusIcon(scan.status)}
+                            icon={getStatusIcon(scan.status) || undefined}
                           />
                         </Box>
                       }
@@ -242,7 +239,7 @@ const ScansPage = () => {
                         </Box>
                       }
                     />
-                  </ListItem>
+                  </ListItemButton>
                   {index < scans.length - 1 && <Divider />}
                 </Box>
               ))}
@@ -251,7 +248,7 @@ const ScansPage = () => {
         </Grid>
 
         {/* Scan Details */}
-        <Grid item xs={12} md={7}>
+        <Grid size={{ xs: 12, md: 7 }}>
           {selectedScan ? (
             <Card sx={{ height: '70vh', overflow: 'auto' }}>
               <CardContent>
@@ -268,7 +265,7 @@ const ScansPage = () => {
                   <Chip
                     label={selectedScan.status.toUpperCase()}
                     color={getStatusColor(selectedScan.status) as any}
-                    icon={getStatusIcon(selectedScan.status)}
+                    icon={getStatusIcon(selectedScan.status) || undefined}
                   />
                 </Box>
 
@@ -295,7 +292,7 @@ const ScansPage = () => {
 
                 {/* Stats */}
                 <Grid container spacing={2} sx={{ mb: 3 }}>
-                  <Grid item xs={4}>
+                  <Grid size={{ xs: 4 }}>
                     <Paper sx={{ p: 2, textAlign: 'center' }}>
                       <Typography variant="h4" color="primary">
                         {selectedScan.vulnerabilitiesFound}
@@ -305,7 +302,7 @@ const ScansPage = () => {
                       </Typography>
                     </Paper>
                   </Grid>
-                  <Grid item xs={4}>
+                  <Grid size={{ xs: 4 }}>
                     <Paper sx={{ p: 2, textAlign: 'center' }}>
                       <Typography variant="h4" color="info.main">
                         {selectedScan.toolsUsed.length}
@@ -315,7 +312,7 @@ const ScansPage = () => {
                       </Typography>
                     </Paper>
                   </Grid>
-                  <Grid item xs={4}>
+                  <Grid size={{ xs: 4 }}>
                     <Paper sx={{ p: 2, textAlign: 'center' }}>
                       <Typography variant="h4" color="success.main">
                         {formatDuration(selectedScan.duration)}

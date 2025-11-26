@@ -16,8 +16,6 @@ import {
   Chip,
   InputAdornment,
   Paper,
-  Tabs,
-  Tab,
   Button,
 } from '@mui/material';
 import BuildIcon from '@mui/icons-material/Build';
@@ -261,7 +259,6 @@ const MOCK_TOOLS: Tool[] = [
   },
 ];
 
-const CATEGORIES = ['all', 'network', 'web', 'binary', 'cloud', 'ctf', 'osint'];
 
 const ToolsPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -334,7 +331,7 @@ const ToolsPage = () => {
       {/* Filters */}
       <Paper sx={{ p: 2, mb: 3 }}>
         <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <TextField
               fullWidth
               placeholder="Search tools..."
@@ -349,7 +346,7 @@ const ToolsPage = () => {
               }}
             />
           </Grid>
-          <Grid item xs={12} md={3}>
+          <Grid size={{ xs: 12, md: 3 }}>
             <FormControl fullWidth>
               <InputLabel>Category</InputLabel>
               <Select
@@ -367,7 +364,7 @@ const ToolsPage = () => {
               </Select>
             </FormControl>
           </Grid>
-          <Grid item xs={12} md={3}>
+          <Grid size={{ xs: 12, md: 3 }}>
             <Button
               fullWidth
               variant={showInstalledOnly ? 'contained' : 'outlined'}
@@ -383,7 +380,7 @@ const ToolsPage = () => {
       {/* Tools Grid */}
       <Grid container spacing={3}>
         {filteredTools.map((tool) => (
-          <Grid item xs={12} sm={6} md={4} lg={3} key={tool.id}>
+          <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={tool.id}>
             <ToolCard
               tool={tool}
               onLaunch={handleLaunchTool}
