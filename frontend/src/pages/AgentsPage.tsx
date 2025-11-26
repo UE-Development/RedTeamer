@@ -3,9 +3,12 @@
  * Main interface for interacting with HexStrike AI agents
  */
 
-import { useEffect, useCallback } from 'react';
-import { Box, Typography } from '@mui/material';
+import { useEffect, useCallback, useState } from 'react';
+import { Box, Typography, Tabs, Tab, Paper } from '@mui/material';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
+import ChatIcon from '@mui/icons-material/Chat';
+import HistoryIcon from '@mui/icons-material/History';
+import SpeedIcon from '@mui/icons-material/Speed';
 import { useAppSelector, useAppDispatch } from '../store';
 import {
   setAgents,
@@ -13,10 +16,13 @@ import {
   addMessage,
   updateAgent,
   setLoading,
+  clearMessages,
 } from '../store/slices/agentsSlice';
 import {
   AgentSelectorPanel,
   AgentChatInterface,
+  ConversationHistory,
+  AgentPerformanceMetrics,
 } from '../components/agents';
 import type { Agent, AgentMessage } from '../types';
 
@@ -135,6 +141,7 @@ const mockAgents: Agent[] = [
 const AgentsPage = () => {
   const dispatch = useAppDispatch();
   const { agents, selectedAgent, messages, loading } = useAppSelector((state) => state.agents);
+  const [activeTab, setActiveTab] = useState(0);
 
   useEffect(() => {
     // Initialize with mock agents
@@ -185,6 +192,35 @@ const AgentsPage = () => {
     }, 1500);
   }, [dispatch, selectedAgent]);
 
+  const handleClearHistory = useCallback(() => {
+    dispatch(clearMessages());
+  }, [dispatch]);
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 0: // Chat
+        return (
+          <AgentChatInterface
+            messages={messages}
+            selectedAgent={selectedAgent}
+            onSendMessage={handleSendMessage}
+            loading={loading}
+          />
+        );
+      case 1: // History
+        return (
+          <ConversationHistory
+            messages={messages}
+            onClearHistory={handleClearHistory}
+          />
+        );
+      case 2: // Metrics
+        return <AgentPerformanceMetrics agent={selectedAgent} />;
+      default:
+        return null;
+    }
+  };
+
   return (
     <Box sx={{ height: 'calc(100vh - 140px)' }}>
       <Typography variant="h4" sx={{ mb: 3, fontWeight: 700 }}>
@@ -208,13 +244,42 @@ const AgentsPage = () => {
           onToggleAgent={handleToggleAgent}
         />
 
-        {/* Chat Interface */}
-        <AgentChatInterface
-          messages={messages}
-          selectedAgent={selectedAgent}
-          onSendMessage={handleSendMessage}
-          loading={loading}
-        />
+        {/* Main Content Area with Tabs */}
+        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+          {/* Tabs */}
+          <Paper sx={{ mb: 2 }}>
+            <Tabs
+              value={activeTab}
+              onChange={(_, newValue) => setActiveTab(newValue)}
+              variant="fullWidth"
+              sx={{ borderBottom: 1, borderColor: 'divider' }}
+            >
+              <Tab
+                icon={<ChatIcon />}
+                label="Chat"
+                iconPosition="start"
+                sx={{ minHeight: 48 }}
+              />
+              <Tab
+                icon={<HistoryIcon />}
+                label="History"
+                iconPosition="start"
+                sx={{ minHeight: 48 }}
+              />
+              <Tab
+                icon={<SpeedIcon />}
+                label="Metrics"
+                iconPosition="start"
+                sx={{ minHeight: 48 }}
+              />
+            </Tabs>
+          </Paper>
+
+          {/* Tab Content */}
+          <Box sx={{ flex: 1, minHeight: 0 }}>
+            {renderTabContent()}
+          </Box>
+        </Box>
       </Box>
     </Box>
   );
