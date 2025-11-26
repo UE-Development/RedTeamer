@@ -26,6 +26,8 @@ import {
   Card,
   CardContent,
   InputAdornment,
+  Autocomplete,
+  ListSubheader,
 } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
 import DnsIcon from '@mui/icons-material/Dns';
@@ -40,23 +42,107 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import WarningIcon from '@mui/icons-material/Warning';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
+import StarIcon from '@mui/icons-material/Star';
 import { useAppSelector, useAppDispatch } from '../store';
 import {
   setMCPServerSettings,
   setExternalAccessEnabled,
   setThemeSettings,
   setAPISettings,
+  setAIProviderSettings,
   setNotificationSettings,
   saveSettings,
   resetSettings,
 } from '../store/slices/settingsSlice';
 import { apiClient } from '../services/api';
 
+// OpenRouter model definitions with categories
+interface AIModel {
+  id: string;
+  name: string;
+  category: 'recommended' | 'anthropic' | 'openai' | 'google' | 'meta' | 'mistral' | 'other';
+  description?: string;
+}
+
+const AI_MODELS: AIModel[] = [
+  // Recommended / Top Choices
+  { id: 'anthropic/claude-3.5-sonnet', name: '🌟 Claude 3.5 Sonnet', category: 'recommended', description: 'Best for security analysis' },
+  { id: 'openai/gpt-4o', name: '🌟 GPT-4o', category: 'recommended', description: 'Fastest GPT-4 model' },
+  { id: 'anthropic/claude-3-opus', name: '🌟 Claude 3 Opus', category: 'recommended', description: 'Most capable model' },
+  { id: 'google/gemini-pro-1.5', name: '🌟 Gemini Pro 1.5', category: 'recommended', description: 'Long context window' },
+  
+  // Anthropic Models
+  { id: 'anthropic/claude-3.5-sonnet:beta', name: 'Claude 3.5 Sonnet (Beta)', category: 'anthropic' },
+  { id: 'anthropic/claude-3-sonnet', name: 'Claude 3 Sonnet', category: 'anthropic' },
+  { id: 'anthropic/claude-3-haiku', name: 'Claude 3 Haiku', category: 'anthropic', description: 'Fast and efficient' },
+  { id: 'anthropic/claude-2.1', name: 'Claude 2.1', category: 'anthropic' },
+  { id: 'anthropic/claude-2', name: 'Claude 2', category: 'anthropic' },
+  { id: 'anthropic/claude-instant-1.2', name: 'Claude Instant 1.2', category: 'anthropic' },
+  
+  // OpenAI Models
+  { id: 'openai/gpt-4-turbo', name: 'GPT-4 Turbo', category: 'openai' },
+  { id: 'openai/gpt-4-turbo-preview', name: 'GPT-4 Turbo Preview', category: 'openai' },
+  { id: 'openai/gpt-4', name: 'GPT-4', category: 'openai' },
+  { id: 'openai/gpt-4-32k', name: 'GPT-4 32K', category: 'openai' },
+  { id: 'openai/gpt-3.5-turbo', name: 'GPT-3.5 Turbo', category: 'openai' },
+  { id: 'openai/gpt-3.5-turbo-16k', name: 'GPT-3.5 Turbo 16K', category: 'openai' },
+  { id: 'openai/o1-preview', name: 'O1 Preview', category: 'openai', description: 'Reasoning model' },
+  { id: 'openai/o1-mini', name: 'O1 Mini', category: 'openai', description: 'Fast reasoning' },
+  
+  // Google Models
+  { id: 'google/gemini-pro', name: 'Gemini Pro', category: 'google' },
+  { id: 'google/gemini-pro-vision', name: 'Gemini Pro Vision', category: 'google' },
+  { id: 'google/gemini-1.5-pro', name: 'Gemini 1.5 Pro', category: 'google' },
+  { id: 'google/gemini-1.5-flash', name: 'Gemini 1.5 Flash', category: 'google' },
+  { id: 'google/palm-2-chat-bison', name: 'PaLM 2 Chat', category: 'google' },
+  
+  // Meta Llama Models
+  { id: 'meta-llama/llama-3.1-405b-instruct', name: 'Llama 3.1 405B', category: 'meta', description: 'Largest open model' },
+  { id: 'meta-llama/llama-3.1-70b-instruct', name: 'Llama 3.1 70B', category: 'meta' },
+  { id: 'meta-llama/llama-3.1-8b-instruct', name: 'Llama 3.1 8B', category: 'meta' },
+  { id: 'meta-llama/llama-3-70b-instruct', name: 'Llama 3 70B', category: 'meta' },
+  { id: 'meta-llama/llama-3-8b-instruct', name: 'Llama 3 8B', category: 'meta' },
+  { id: 'meta-llama/codellama-70b-instruct', name: 'CodeLlama 70B', category: 'meta', description: 'Code specialist' },
+  
+  // Mistral Models
+  { id: 'mistralai/mistral-large', name: 'Mistral Large', category: 'mistral' },
+  { id: 'mistralai/mistral-medium', name: 'Mistral Medium', category: 'mistral' },
+  { id: 'mistralai/mistral-small', name: 'Mistral Small', category: 'mistral' },
+  { id: 'mistralai/mixtral-8x7b-instruct', name: 'Mixtral 8x7B', category: 'mistral' },
+  { id: 'mistralai/mixtral-8x22b-instruct', name: 'Mixtral 8x22B', category: 'mistral' },
+  { id: 'mistralai/codestral-latest', name: 'Codestral', category: 'mistral', description: 'Code specialist' },
+  
+  // Other Models
+  { id: 'cohere/command-r-plus', name: 'Command R+', category: 'other' },
+  { id: 'cohere/command-r', name: 'Command R', category: 'other' },
+  { id: 'databricks/dbrx-instruct', name: 'DBRX Instruct', category: 'other' },
+  { id: 'deepseek/deepseek-coder', name: 'DeepSeek Coder', category: 'other' },
+  { id: 'deepseek/deepseek-chat', name: 'DeepSeek Chat', category: 'other' },
+  { id: 'perplexity/llama-3.1-sonar-large-128k-online', name: 'Perplexity Sonar Large', category: 'other', description: 'With web search' },
+  { id: 'perplexity/llama-3.1-sonar-small-128k-online', name: 'Perplexity Sonar Small', category: 'other', description: 'With web search' },
+  { id: 'qwen/qwen-2-72b-instruct', name: 'Qwen 2 72B', category: 'other' },
+  { id: '01-ai/yi-large', name: 'Yi Large', category: 'other' },
+];
+
+const CATEGORY_LABELS: Record<string, string> = {
+  recommended: '⭐ TOP CHOICES',
+  anthropic: '🟣 Anthropic',
+  openai: '🟢 OpenAI',
+  google: '🔵 Google',
+  meta: '🟠 Meta Llama',
+  mistral: '🟡 Mistral AI',
+  other: '⚪ Other Models',
+};
+
 const SettingsPage = () => {
   const dispatch = useAppDispatch();
   const settings = useAppSelector((state) => state.settings);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showCopySuccess, setShowCopySuccess] = useState(false);
+  const [showOpenRouterKey, setShowOpenRouterKey] = useState(false);
 
   const handleSaveSettings = () => {
     dispatch(saveSettings());
@@ -307,6 +393,205 @@ const SettingsPage = () => {
                       />
                     </Box>
                   </Paper>
+                </Grid>
+              )}
+            </Grid>
+          </Paper>
+        </Grid>
+
+        {/* OpenRouter AI Configuration */}
+        <Grid size={12}>
+          <Paper sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <SmartToyIcon sx={{ mr: 1, color: 'success.main' }} />
+              <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                OpenRouter AI Configuration
+              </Typography>
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Configure OpenRouter API for AI-powered security analysis and agent capabilities.
+              Get your API key from{' '}
+              <a
+                href="https://openrouter.ai/keys"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: '#00ff41' }}
+              >
+                openrouter.ai/keys
+              </a>
+            </Typography>
+
+            <Grid container spacing={3}>
+              <Grid size={{ xs: 12, md: 4 }}>
+                <Card
+                  sx={{
+                    bgcolor: settings.aiProvider.openRouterEnabled ? 'success.main' : 'action.disabledBackground',
+                    color: settings.aiProvider.openRouterEnabled ? 'white' : 'text.secondary',
+                    transition: 'all 0.3s ease',
+                  }}
+                >
+                  <CardContent>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Box>
+                        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                          OpenRouter Status
+                        </Typography>
+                        <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                          {settings.aiProvider.openRouterEnabled ? 'AI features enabled' : 'AI features disabled'}
+                        </Typography>
+                      </Box>
+                      <Switch
+                        checked={settings.aiProvider.openRouterEnabled}
+                        onChange={(e) => dispatch(setAIProviderSettings({ openRouterEnabled: e.target.checked }))}
+                        color="default"
+                        sx={{
+                          '& .MuiSwitch-switchBase.Mui-checked': {
+                            color: 'white',
+                          },
+                        }}
+                      />
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              <Grid size={{ xs: 12, md: 8 }}>
+                <TextField
+                  fullWidth
+                  label="OpenRouter API Key"
+                  type={showOpenRouterKey ? 'text' : 'password'}
+                  value={settings.aiProvider.openRouterApiKey}
+                  onChange={(e) => dispatch(setAIProviderSettings({ openRouterApiKey: e.target.value }))}
+                  placeholder="sk-or-v1-..."
+                  helperText="Your OpenRouter API key for AI-powered features"
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SecurityIcon />
+                      </InputAdornment>
+                    ),
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <Tooltip title={showOpenRouterKey ? 'Hide API Key' : 'Show API Key'}>
+                          <IconButton onClick={() => setShowOpenRouterKey(!showOpenRouterKey)}>
+                            {showOpenRouterKey ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Copy API Key">
+                          <IconButton
+                            onClick={() => copyToClipboard(settings.aiProvider.openRouterApiKey)}
+                            disabled={!settings.aiProvider.openRouterApiKey}
+                          >
+                            <ContentCopyIcon />
+                          </IconButton>
+                        </Tooltip>
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+
+              <Grid size={12}>
+                <Autocomplete
+                  options={AI_MODELS}
+                  groupBy={(option) => option.category}
+                  getOptionLabel={(option) => option.name}
+                  value={AI_MODELS.find((m) => m.id === settings.aiProvider.openRouterModel) || AI_MODELS[0]}
+                  onChange={(_, newValue) => {
+                    if (newValue) {
+                      dispatch(setAIProviderSettings({ openRouterModel: newValue.id }));
+                    }
+                  }}
+                  disabled={!settings.aiProvider.openRouterEnabled}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="AI Model"
+                      placeholder="Search models..."
+                      helperText="Search by name or scroll through categories"
+                    />
+                  )}
+                  renderGroup={(params) => (
+                    <li key={params.key}>
+                      <ListSubheader
+                        component="div"
+                        sx={{
+                          bgcolor: 'background.paper',
+                          color: params.group === 'recommended' ? 'warning.main' : 'text.secondary',
+                          fontWeight: 700,
+                          fontSize: '0.75rem',
+                          letterSpacing: '0.1em',
+                          py: 1,
+                          borderBottom: '1px solid',
+                          borderColor: 'divider',
+                        }}
+                      >
+                        {CATEGORY_LABELS[params.group] || params.group}
+                      </ListSubheader>
+                      <ul style={{ padding: 0 }}>{params.children}</ul>
+                    </li>
+                  )}
+                  renderOption={(props, option) => {
+                    const { key, ...otherProps } = props;
+                    return (
+                      <li key={key} {...otherProps}>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', py: 0.5 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="body1">{option.name}</Typography>
+                            {option.category === 'recommended' && (
+                              <StarIcon sx={{ fontSize: 16, color: 'warning.main' }} />
+                            )}
+                          </Box>
+                          {option.description && (
+                            <Typography variant="caption" color="text.secondary">
+                              {option.description}
+                            </Typography>
+                          )}
+                          <Typography variant="caption" color="text.disabled" sx={{ fontFamily: 'monospace' }}>
+                            {option.id}
+                          </Typography>
+                        </Box>
+                      </li>
+                    );
+                  }}
+                  ListboxProps={{
+                    sx: { maxHeight: 400 },
+                  }}
+                  isOptionEqualToValue={(option, value) => option.id === value.id}
+                />
+              </Grid>
+
+              {settings.aiProvider.openRouterEnabled && settings.aiProvider.openRouterApiKey && (
+                <Grid size={12}>
+                  <Alert severity="success" icon={<CheckCircleIcon />}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                      OpenRouter Connected
+                    </Typography>
+                    <Typography variant="body2">
+                      AI-powered security analysis is now available. Your agents can use advanced AI capabilities for vulnerability detection and exploit generation.
+                    </Typography>
+                  </Alert>
+                </Grid>
+              )}
+
+              {settings.aiProvider.openRouterEnabled && !settings.aiProvider.openRouterApiKey && (
+                <Grid size={12}>
+                  <Alert severity="warning" icon={<WarningIcon />}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                      API Key Required
+                    </Typography>
+                    <Typography variant="body2">
+                      Please enter your OpenRouter API key to enable AI features. You can get one at{' '}
+                      <a
+                        href="https://openrouter.ai/keys"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: 'inherit', fontWeight: 600 }}
+                      >
+                        openrouter.ai/keys
+                      </a>
+                    </Typography>
+                  </Alert>
                 </Grid>
               )}
             </Grid>

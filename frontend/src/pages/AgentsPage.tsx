@@ -3,7 +3,7 @@
  * Main interface for interacting with HexStrike AI agents
  */
 
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
 import { Box, Typography, Tabs, Tab, Paper } from '@mui/material';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import ChatIcon from '@mui/icons-material/Chat';
@@ -229,18 +229,23 @@ const AgentsPage = () => {
   const [activeTab, setActiveTab] = useState(0);
   const [multiAgentChats, setMultiAgentChats] = useState<AgentChat[]>([]);
   const [workflow, setWorkflow] = useState<CollaborationWorkflow | null>(null);
+  // Use ref to track if workflow has been initialized (avoids extra renders)
+  const workflowInitializedRef = useRef(false);
 
   useEffect(() => {
     // Initialize with mock agents
     dispatch(setAgents(mockAgents));
   }, [dispatch]);
 
-  // Initialize workflow when agents are loaded
+  // Initialize workflow when agents are loaded - using ref to track initialization
+  // This is the correct pattern for one-time initialization based on derived data
   useEffect(() => {
-    if (agents.length > 0 && !workflow) {
+    if (agents.length > 0 && !workflowInitializedRef.current) {
+      workflowInitializedRef.current = true;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setWorkflow(createMockWorkflow(agents));
     }
-  }, [agents, workflow]);
+  }, [agents]);
 
   const handleSelectAgent = useCallback(
     (agent: Agent) => {
