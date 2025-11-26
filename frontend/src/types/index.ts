@@ -30,7 +30,7 @@ export interface Agent {
   status: AgentStatus;
   capabilities: string[];
   currentTask?: string;
-  lastActive: Date;
+  lastActive: string; // ISO date string for Redux compatibility
   description?: string;
   icon?: string;
 }
@@ -211,7 +211,7 @@ export interface AgentMessage {
   agentId: string;
   agentName: string;
   content: string;
-  timestamp: Date;
+  timestamp: string; // ISO date string for Redux compatibility
   isUser: boolean;
   metadata?: {
     toolsUsed?: string[];
