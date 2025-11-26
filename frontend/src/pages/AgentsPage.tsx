@@ -3,7 +3,7 @@
  * Main interface for interacting with HexStrike AI agents
  */
 
-import { useEffect, useCallback, useState, useMemo } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
 import { Box, Typography, Tabs, Tab, Paper } from '@mui/material';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import ChatIcon from '@mui/icons-material/Chat';
@@ -228,31 +228,24 @@ const AgentsPage = () => {
   const { agents, selectedAgent, messages, loading } = useAppSelector((state) => state.agents);
   const [activeTab, setActiveTab] = useState(0);
   const [multiAgentChats, setMultiAgentChats] = useState<AgentChat[]>([]);
-  // Use state with manual control for workflow updates
   const [workflow, setWorkflow] = useState<CollaborationWorkflow | null>(null);
-  const [workflowInitialized, setWorkflowInitialized] = useState(false);
+  // Use ref to track if workflow has been initialized (avoids extra renders)
+  const workflowInitializedRef = useRef(false);
 
   useEffect(() => {
     // Initialize with mock agents
     dispatch(setAgents(mockAgents));
   }, [dispatch]);
 
-  // Use useMemo to create initial workflow when agents are available
-  const initialWorkflow = useMemo(() => {
-    if (agents.length > 0) {
-      return createMockWorkflow(agents);
-    }
-    return null;
-  }, [agents]);
-
-  // Set workflow once when initial workflow is computed
+  // Initialize workflow when agents are loaded - using ref to track initialization
+  // This is the correct pattern for one-time initialization based on derived data
   useEffect(() => {
-    if (initialWorkflow && !workflowInitialized) {
+    if (agents.length > 0 && !workflowInitializedRef.current) {
+      workflowInitializedRef.current = true;
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setWorkflowInitialized(true);
-      setWorkflow(initialWorkflow);
+      setWorkflow(createMockWorkflow(agents));
     }
-  }, [initialWorkflow, workflowInitialized]);
+  }, [agents]);
 
   const handleSelectAgent = useCallback(
     (agent: Agent) => {
