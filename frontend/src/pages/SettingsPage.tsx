@@ -50,6 +50,7 @@ import {
   saveSettings,
   resetSettings,
 } from '../store/slices/settingsSlice';
+import { apiClient } from '../services/api';
 
 const SettingsPage = () => {
   const dispatch = useAppDispatch();
@@ -67,13 +68,26 @@ const SettingsPage = () => {
     setShowSuccess(true);
   };
 
-  const generateApiKey = () => {
-    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let key = 'hx_';
-    for (let i = 0; i < 32; i++) {
-      key += characters.charAt(Math.floor(Math.random() * characters.length));
+  const generateApiKey = async () => {
+    try {
+      // Use the secure backend API to generate API keys
+      const response = await apiClient.generateApiKey();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data = response as any;
+      if (data.success && data.api_key) {
+        dispatch(setMCPServerSettings({ apiKey: data.api_key }));
+      }
+    } catch {
+      // Fallback to secure local generation using Web Crypto API
+      const array = new Uint8Array(32);
+      window.crypto.getRandomValues(array);
+      const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+      let key = 'hx_';
+      for (let i = 0; i < 32; i++) {
+        key += characters.charAt(array[i] % characters.length);
+      }
+      dispatch(setMCPServerSettings({ apiKey: key }));
     }
-    dispatch(setMCPServerSettings({ apiKey: key }));
   };
 
   const copyToClipboard = (text: string) => {

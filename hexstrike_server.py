@@ -17304,10 +17304,81 @@ def update_settings():
     try:
         data = request.get_json()
         
-        # Update settings
+        # Allowed categories and their valid keys with types
+        allowed_settings = {
+            "mcp_server": {
+                "host": str,
+                "port": int,
+                "enabled": bool,
+                "external_access_enabled": bool,
+                "external_host": str,
+                "auth_required": bool,
+                "api_key": str
+            },
+            "theme": {
+                "mode": str,
+                "primary_color": str,
+                "accent_color": str
+            },
+            "api": {
+                "base_url": str,
+                "websocket_url": str,
+                "timeout": int,
+                "retry_attempts": int
+            },
+            "notifications": {
+                "enabled": bool,
+                "sound_enabled": bool,
+                "scan_complete_notify": bool,
+                "vulnerability_found_notify": bool,
+                "critical_only_notify": bool
+            }
+        }
+        
+        # Validate and update settings
         for category, settings in data.items():
-            if category in _server_settings:
-                _server_settings[category].update(settings)
+            if category not in allowed_settings:
+                logger.warning(f"Ignored unknown settings category: {category}")
+                continue
+            
+            if not isinstance(settings, dict):
+                continue
+                
+            for key, value in settings.items():
+                if key not in allowed_settings[category]:
+                    logger.warning(f"Ignored unknown setting: {category}.{key}")
+                    continue
+                
+                expected_type = allowed_settings[category][key]
+                if not isinstance(value, expected_type):
+                    logger.warning(f"Invalid type for {category}.{key}: expected {expected_type.__name__}")
+                    continue
+                
+                # Validate specific fields
+                if key == "port":
+                    if not (1 <= value <= 65535):
+                        logger.warning(f"Invalid port number: {value}")
+                        continue
+                elif key == "timeout":
+                    if not (1000 <= value <= 300000):
+                        logger.warning(f"Invalid timeout value: {value}")
+                        continue
+                elif key == "retry_attempts":
+                    if not (0 <= value <= 10):
+                        logger.warning(f"Invalid retry_attempts value: {value}")
+                        continue
+                elif key == "mode":
+                    if value not in ["dark", "light"]:
+                        logger.warning(f"Invalid theme mode: {value}")
+                        continue
+                elif key == "host" or key == "external_host":
+                    # Basic validation for host - allow localhost, 0.0.0.0, 127.0.0.1, or valid IP pattern
+                    import re
+                    if not re.match(r'^(localhost|0\.0\.0\.0|127\.0\.0\.1|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$', value):
+                        logger.warning(f"Invalid host address: {value}")
+                        continue
+                
+                _server_settings[category][key] = value
         
         logger.info("Settings updated successfully")
         return jsonify({
@@ -17345,11 +17416,44 @@ def update_mcp_server_settings():
     try:
         data = request.get_json()
         
-        # Update MCP server settings
-        _server_settings["mcp_server"].update(data)
+        # Validate MCP server settings
+        import re
+        allowed_keys = {
+            "host": str,
+            "port": int,
+            "enabled": bool,
+            "external_access_enabled": bool,
+            "external_host": str,
+            "auth_required": bool,
+            "api_key": str
+        }
+        
+        validated_data = {}
+        for key, value in data.items():
+            if key not in allowed_keys:
+                logger.warning(f"Ignored unknown MCP setting: {key}")
+                continue
+            
+            expected_type = allowed_keys[key]
+            if not isinstance(value, expected_type):
+                logger.warning(f"Invalid type for MCP setting {key}: expected {expected_type.__name__}")
+                continue
+            
+            # Validate specific fields
+            if key == "port":
+                if not (1 <= value <= 65535):
+                    return jsonify({"error": f"Invalid port number: {value}. Must be between 1 and 65535."}), 400
+            elif key in ["host", "external_host"]:
+                if not re.match(r'^(localhost|0\.0\.0\.0|127\.0\.0\.1|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$', value):
+                    return jsonify({"error": f"Invalid host address: {value}"}), 400
+            
+            validated_data[key] = value
+        
+        # Update MCP server settings with validated data
+        _server_settings["mcp_server"].update(validated_data)
         
         # Log the change
-        logger.info(f"MCP Server settings updated: {data}")
+        logger.info(f"MCP Server settings updated: {validated_data}")
         
         return jsonify({
             "success": True,
@@ -17369,6 +17473,15 @@ def set_external_access():
         data = request.get_json()
         enabled = data.get("enabled", False)
         host = data.get("host", "0.0.0.0")
+        
+        # Validate enabled is boolean
+        if not isinstance(enabled, bool):
+            return jsonify({"error": "enabled must be a boolean value"}), 400
+        
+        # Validate host format
+        import re
+        if not re.match(r'^(localhost|0\.0\.0\.0|127\.0\.0\.1|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$', host):
+            return jsonify({"error": f"Invalid host address: {host}"}), 400
         
         # Update settings
         _server_settings["mcp_server"]["external_access_enabled"] = enabled
@@ -17426,6 +17539,8 @@ def generate_api_key():
 def validate_api_key():
     """Validate an API key"""
     try:
+        import secrets
+        
         data = request.get_json()
         provided_key = data.get("api_key", "")
         
@@ -17438,7 +17553,8 @@ def validate_api_key():
                 "message": "No API key configured - all requests allowed"
             })
         
-        is_valid = provided_key == stored_key
+        # Use constant-time comparison to prevent timing attacks
+        is_valid = secrets.compare_digest(provided_key, stored_key)
         
         return jsonify({
             "success": True,
