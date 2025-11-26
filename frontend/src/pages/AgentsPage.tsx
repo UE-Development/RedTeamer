@@ -146,8 +146,8 @@ const AgentsPage = () => {
   }, [dispatch]);
 
   const handleToggleAgent = useCallback((agent: Agent) => {
-    const newStatus = agent.status === 'active' || agent.status === 'busy' ? 'standby' : 'active';
-    dispatch(updateAgent({ ...agent, status: newStatus as Agent['status'] }));
+    const newStatus: Agent['status'] = agent.status === 'active' || agent.status === 'busy' ? 'standby' : 'active';
+    dispatch(updateAgent({ ...agent, status: newStatus }));
   }, [dispatch]);
 
   const handleSendMessage = useCallback((content: string) => {

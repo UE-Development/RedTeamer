@@ -101,10 +101,13 @@ const CommandInput = ({
     } else if (e.key === 'Escape') {
       setShowSuggestions(false);
       setSelectedIndex(-1);
-    } else if (e.key === 'Tab' && shouldShowSuggestions) {
+    } else if (e.key === 'Tab' && shouldShowSuggestions && filteredSuggestions.length > 0) {
       e.preventDefault();
-      setInputValue(filteredSuggestions[Math.max(0, selectedIndex)]);
+      // If no selection made, default to first suggestion
+      const indexToUse = selectedIndex >= 0 ? selectedIndex : 0;
+      setInputValue(filteredSuggestions[indexToUse]);
       setShowSuggestions(false);
+      setSelectedIndex(-1);
     }
   };
 
@@ -122,7 +125,7 @@ const CommandInput = ({
         value={inputValue}
         onChange={(e) => setInputValue(e.target.value)}
         onKeyDown={handleKeyDown}
-        onFocus={() => inputValue.length >= 2 && setShowSuggestions(filteredSuggestions.length > 0)}
+        onFocus={() => setShowSuggestions(filteredSuggestions.length > 0)}
         onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
         placeholder={placeholder}
         disabled={disabled}

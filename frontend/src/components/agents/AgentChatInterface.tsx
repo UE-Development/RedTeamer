@@ -16,7 +16,7 @@ import {
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import PersonIcon from '@mui/icons-material/Person';
 import BuildIcon from '@mui/icons-material/Build';
-import type { AgentMessage, Agent } from '../../types';
+import type { AgentMessage, Agent, AgentStatus } from '../../types';
 import CommandInput from './CommandInput';
 
 interface AgentChatInterfaceProps {
@@ -25,6 +25,14 @@ interface AgentChatInterfaceProps {
   onSendMessage: (message: string) => void;
   loading?: boolean;
 }
+
+// Status to chip color mapping
+const statusColorMap: Record<AgentStatus, 'success' | 'primary' | 'warning' | 'error'> = {
+  active: 'success',
+  busy: 'primary',
+  standby: 'warning',
+  error: 'error',
+};
 
 const AgentChatInterface = ({
   messages,
@@ -185,7 +193,7 @@ const AgentChatInterface = ({
             <Chip
               label={selectedAgent.status.toUpperCase()}
               size="small"
-              color={selectedAgent.status === 'active' ? 'success' : selectedAgent.status === 'busy' ? 'primary' : 'warning'}
+              color={statusColorMap[selectedAgent.status]}
             />
           )}
         </Box>
