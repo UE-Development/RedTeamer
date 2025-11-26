@@ -239,6 +239,23 @@ The next phase will implement the Agent Interface:
 - [ ] Real-time status updates
 - [ ] Task coordination display
 
+### Reports Page (Phase 6) ✅
+- [x] Report generator interface
+- [x] Report type selection (Comprehensive, Executive, Technical, Compliance)
+- [x] Target and scan date selection
+- [x] Section selection (checkboxes)
+- [x] Output format selection (PDF, HTML, JSON, Markdown)
+- [x] Report generation with progress indicator
+- [x] Generated reports list with actions
+
+### Projects Page (Phase 7) ✅
+- [x] Project cards with status and metrics
+- [x] Team member display with online status
+- [x] Search and filter functionality
+- [x] Tabs for Active/Completed/Archived
+- [x] Create new project dialog
+- [x] Archive and delete functionality
+
 ## 📚 Resources
 
 - [React Documentation](https://react.dev/)
