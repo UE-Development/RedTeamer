@@ -22,7 +22,6 @@ import SmartToyIcon from '@mui/icons-material/SmartToy';
 import PersonIcon from '@mui/icons-material/Person';
 import BuildIcon from '@mui/icons-material/Build';
 import CloseIcon from '@mui/icons-material/Close';
-import AddIcon from '@mui/icons-material/Add';
 import GroupIcon from '@mui/icons-material/Group';
 import type { Agent, AgentMessage, AgentStatus } from '../../types';
 import CommandInput from './CommandInput';
@@ -277,14 +276,6 @@ const MultiAgentChat = ({
                 value={index}
               />
             ))}
-            <Tab
-              icon={<AddIcon />}
-              onClick={(e) => {
-                e.preventDefault();
-                // This would typically open an agent selection dialog
-              }}
-              sx={{ minWidth: 48 }}
-            />
           </Tabs>
         )}
       </Box>

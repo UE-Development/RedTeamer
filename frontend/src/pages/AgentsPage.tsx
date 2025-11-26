@@ -31,6 +31,15 @@ import {
 import type { CollaborationTask, CollaborationWorkflow } from '../components/agents';
 import type { Agent, AgentMessage } from '../types';
 
+// Tab indices for better maintainability
+const TABS = {
+  CHAT: 0,
+  MULTI_AGENT: 1,
+  COLLABORATION: 2,
+  HISTORY: 3,
+  METRICS: 4,
+} as const;
+
 // Mock agents data based on FEATURES.md
 const mockAgents: Agent[] = [
   {
@@ -237,7 +246,7 @@ const AgentsPage = () => {
     (agent: Agent) => {
       dispatch(setSelectedAgent(agent));
       // When on Multi-Agent tab, also add the agent to the chat list
-      if (activeTab === 1) {
+      if (activeTab === TABS.MULTI_AGENT) {
         setMultiAgentChats((prev) => {
           if (prev.find((c) => c.agent.id === agent.id)) {
             return prev; // Already exists
@@ -436,7 +445,7 @@ const AgentsPage = () => {
 
   const renderTabContent = () => {
     switch (activeTab) {
-      case 0: // Chat
+      case TABS.CHAT:
         return (
           <AgentChatInterface
             messages={messages}
@@ -445,7 +454,7 @@ const AgentsPage = () => {
             loading={loading}
           />
         );
-      case 1: // Multi-Agent Chat
+      case TABS.MULTI_AGENT:
         return (
           <MultiAgentChat
             activeChats={multiAgentChats}
@@ -455,7 +464,7 @@ const AgentsPage = () => {
             loading={loading}
           />
         );
-      case 2: // Collaboration
+      case TABS.COLLABORATION:
         return (
           <AgentCollaborationView
             workflow={workflow}
@@ -466,9 +475,9 @@ const AgentsPage = () => {
             onRestartTask={handleRestartTask}
           />
         );
-      case 3: // History
+      case TABS.HISTORY:
         return <ConversationHistory messages={messages} onClearHistory={handleClearHistory} />;
-      case 4: // Metrics
+      case TABS.METRICS:
         return <AgentPerformanceMetrics agent={selectedAgent} />;
       default:
         return null;
