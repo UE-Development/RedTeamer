@@ -10,3 +10,6 @@ export { default as CommandInput } from './CommandInput';
 export { default as SmartCommandBuilder } from './SmartCommandBuilder';
 export { default as ConversationHistory } from './ConversationHistory';
 export { default as AgentPerformanceMetrics } from './AgentPerformanceMetrics';
+export { default as MultiAgentChat } from './MultiAgentChat';
+export { default as AgentCollaborationView } from './AgentCollaborationView';
+export type { CollaborationTask, CollaborationWorkflow } from './AgentCollaborationView';
