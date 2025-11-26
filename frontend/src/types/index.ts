@@ -40,13 +40,19 @@ export interface Agent {
 // ============================================================================
 
 export type ToolCategory =
+  | 'network'
+  | 'web'
+  | 'binary'
+  | 'cloud'
+  | 'ctf'
+  | 'osint'
+  | 'password'
   | 'network_recon'
   | 'web_app_security'
   | 'password_auth'
   | 'binary_analysis'
   | 'cloud_security'
-  | 'ctf_forensics'
-  | 'osint';
+  | 'ctf_forensics';
 
 export interface ToolParameter {
   name: string;
@@ -129,7 +135,7 @@ export interface Vulnerability {
   cweId?: string;
   location: string;
   discoveredBy: string;
-  discoveredAt: Date;
+  discoveredAt: string; // ISO string for JSON serialization
   status: VulnerabilityStatus;
   remediation?: string;
   proofOfConcept?: string;
