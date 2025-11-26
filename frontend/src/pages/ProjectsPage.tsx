@@ -57,6 +57,9 @@ interface Project {
   updatedAt: string;
 }
 
+// Constants
+const DESCRIPTION_TRUNCATE_LENGTH = 120;
+
 // Mock projects data
 const MOCK_PROJECTS: Project[] = [
   {
@@ -198,7 +201,7 @@ const ProjectsPage = () => {
     if (!newProject.name.trim()) return;
 
     const project: Project = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       name: newProject.name,
       description: newProject.description,
       client: newProject.client || undefined,
@@ -268,7 +271,9 @@ const ProjectsPage = () => {
         )}
 
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2, minHeight: 40 }}>
-          {project.description.length > 120 ? `${project.description.substring(0, 120)}...` : project.description}
+          {project.description.length > DESCRIPTION_TRUNCATE_LENGTH 
+            ? `${project.description.substring(0, DESCRIPTION_TRUNCATE_LENGTH)}...` 
+            : project.description}
         </Typography>
 
         {project.status !== 'archived' && (

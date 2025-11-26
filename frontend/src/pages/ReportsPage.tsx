@@ -3,7 +3,7 @@
  * Generate, preview, and download comprehensive security reports
  */
 
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -75,6 +75,10 @@ interface GeneratedReport {
   formats: ReportFormat[];
   status: 'ready' | 'generating' | 'scheduled';
 }
+
+// Constants
+const PROGRESS_INCREMENT_MAX = 15;
+const PROGRESS_INTERVAL_MS = 300;
 
 // Mock generated reports
 const MOCK_REPORTS: GeneratedReport[] = [
@@ -148,6 +152,9 @@ const ReportsPage = () => {
     formats: ['pdf', 'html'],
   });
 
+  // Ref to store interval ID for cleanup
+  const generationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const reportTypeIcons: Record<ReportType, React.ReactNode> = {
     comprehensive: <SecurityIcon />,
     executive: <BusinessIcon />,
@@ -181,19 +188,27 @@ const ReportsPage = () => {
     }));
   };
 
-  const handleGenerateReport = () => {
+  const handleGenerateReport = useCallback(() => {
     setGenerating(true);
     setGenerationProgress(0);
 
-    const interval = setInterval(() => {
+    // Clear any existing interval
+    if (generationIntervalRef.current) {
+      clearInterval(generationIntervalRef.current);
+    }
+
+    generationIntervalRef.current = setInterval(() => {
       setGenerationProgress((prev) => {
         if (prev >= 100) {
-          clearInterval(interval);
+          if (generationIntervalRef.current) {
+            clearInterval(generationIntervalRef.current);
+            generationIntervalRef.current = null;
+          }
           setGenerating(false);
 
-          // Add new report to list
+          // Add new report to list with crypto UUID for unique ID
           const newReport: GeneratedReport = {
-            id: Date.now().toString(),
+            id: crypto.randomUUID(),
             name: `${config.type.charAt(0).toUpperCase() + config.type.slice(1)} Report - ${config.target}`,
             type: config.type,
             target: config.target,
@@ -202,13 +217,13 @@ const ReportsPage = () => {
             formats: config.formats,
             status: 'ready',
           };
-          setReports((prev) => [newReport, ...prev]);
+          setReports((prevReports) => [newReport, ...prevReports]);
           return 100;
         }
-        return prev + Math.random() * 15;
+        return prev + Math.random() * PROGRESS_INCREMENT_MAX;
       });
-    }, 300);
-  };
+    }, PROGRESS_INTERVAL_MS);
+  }, [config]);
 
   const handleDeleteReport = (reportId: string) => {
     setReports((prev) => prev.filter((r) => r.id !== reportId));
