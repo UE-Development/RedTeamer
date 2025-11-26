@@ -17250,6 +17250,321 @@ def get_alternative_tools():
         logger.error(f"Error getting alternative tools: {str(e)}")
         return jsonify({"error": f"Server error: {str(e)}"}), 500
 
+# ============================================================================
+# SETTINGS & CONFIGURATION API ENDPOINTS
+# ============================================================================
+
+# Global settings state
+_server_settings = {
+    "mcp_server": {
+        "host": API_HOST,
+        "port": API_PORT,
+        "enabled": True,
+        "external_access_enabled": API_HOST == "0.0.0.0",
+        "external_host": "0.0.0.0",
+        "auth_required": True,
+        "api_key": ""
+    },
+    "theme": {
+        "mode": "dark",
+        "primary_color": "#b71c1c",
+        "accent_color": "#ff5252"
+    },
+    "api": {
+        "base_url": f"http://localhost:{API_PORT}",
+        "websocket_url": f"ws://localhost:{API_PORT}",
+        "timeout": 30000,
+        "retry_attempts": 3
+    },
+    "notifications": {
+        "enabled": True,
+        "sound_enabled": True,
+        "scan_complete_notify": True,
+        "vulnerability_found_notify": True,
+        "critical_only_notify": False
+    }
+}
+
+@app.route("/api/config/settings", methods=["GET"])
+def get_settings():
+    """Get all application settings"""
+    try:
+        return jsonify({
+            "success": True,
+            "settings": _server_settings,
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error getting settings: {str(e)}")
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+@app.route("/api/config/settings", methods=["PUT"])
+def update_settings():
+    """Update application settings"""
+    try:
+        data = request.get_json()
+        
+        # Allowed categories and their valid keys with types
+        allowed_settings = {
+            "mcp_server": {
+                "host": str,
+                "port": int,
+                "enabled": bool,
+                "external_access_enabled": bool,
+                "external_host": str,
+                "auth_required": bool,
+                "api_key": str
+            },
+            "theme": {
+                "mode": str,
+                "primary_color": str,
+                "accent_color": str
+            },
+            "api": {
+                "base_url": str,
+                "websocket_url": str,
+                "timeout": int,
+                "retry_attempts": int
+            },
+            "notifications": {
+                "enabled": bool,
+                "sound_enabled": bool,
+                "scan_complete_notify": bool,
+                "vulnerability_found_notify": bool,
+                "critical_only_notify": bool
+            }
+        }
+        
+        # Validate and update settings
+        for category, settings in data.items():
+            if category not in allowed_settings:
+                logger.warning(f"Ignored unknown settings category: {category}")
+                continue
+            
+            if not isinstance(settings, dict):
+                continue
+                
+            for key, value in settings.items():
+                if key not in allowed_settings[category]:
+                    logger.warning(f"Ignored unknown setting: {category}.{key}")
+                    continue
+                
+                expected_type = allowed_settings[category][key]
+                if not isinstance(value, expected_type):
+                    logger.warning(f"Invalid type for {category}.{key}: expected {expected_type.__name__}")
+                    continue
+                
+                # Validate specific fields
+                if key == "port":
+                    if not (1 <= value <= 65535):
+                        logger.warning(f"Invalid port number: {value}")
+                        continue
+                elif key == "timeout":
+                    if not (1000 <= value <= 300000):
+                        logger.warning(f"Invalid timeout value: {value}")
+                        continue
+                elif key == "retry_attempts":
+                    if not (0 <= value <= 10):
+                        logger.warning(f"Invalid retry_attempts value: {value}")
+                        continue
+                elif key == "mode":
+                    if value not in ["dark", "light"]:
+                        logger.warning(f"Invalid theme mode: {value}")
+                        continue
+                elif key == "host" or key == "external_host":
+                    # Basic validation for host - allow localhost, 0.0.0.0, 127.0.0.1, or valid IP pattern
+                    import re
+                    if not re.match(r'^(localhost|0\.0\.0\.0|127\.0\.0\.1|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$', value):
+                        logger.warning(f"Invalid host address: {value}")
+                        continue
+                
+                _server_settings[category][key] = value
+        
+        logger.info("Settings updated successfully")
+        return jsonify({
+            "success": True,
+            "settings": _server_settings,
+            "message": "Settings updated successfully",
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error updating settings: {str(e)}")
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+@app.route("/api/config/mcp-status", methods=["GET"])
+def get_mcp_server_status():
+    """Get MCP server status"""
+    try:
+        return jsonify({
+            "success": True,
+            "status": {
+                "running": True,
+                "host": _server_settings["mcp_server"]["host"],
+                "port": _server_settings["mcp_server"]["port"],
+                "external_access": _server_settings["mcp_server"]["external_access_enabled"],
+                "uptime": "N/A",  # Could be calculated from start time
+            },
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error getting MCP server status: {str(e)}")
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+@app.route("/api/config/mcp-server", methods=["PUT"])
+def update_mcp_server_settings():
+    """Update MCP server settings"""
+    try:
+        data = request.get_json()
+        
+        # Validate MCP server settings
+        import re
+        allowed_keys = {
+            "host": str,
+            "port": int,
+            "enabled": bool,
+            "external_access_enabled": bool,
+            "external_host": str,
+            "auth_required": bool,
+            "api_key": str
+        }
+        
+        validated_data = {}
+        for key, value in data.items():
+            if key not in allowed_keys:
+                logger.warning(f"Ignored unknown MCP setting: {key}")
+                continue
+            
+            expected_type = allowed_keys[key]
+            if not isinstance(value, expected_type):
+                logger.warning(f"Invalid type for MCP setting {key}: expected {expected_type.__name__}")
+                continue
+            
+            # Validate specific fields
+            if key == "port":
+                if not (1 <= value <= 65535):
+                    return jsonify({"error": f"Invalid port number: {value}. Must be between 1 and 65535."}), 400
+            elif key in ["host", "external_host"]:
+                if not re.match(r'^(localhost|0\.0\.0\.0|127\.0\.0\.1|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$', value):
+                    return jsonify({"error": f"Invalid host address: {value}"}), 400
+            
+            validated_data[key] = value
+        
+        # Update MCP server settings with validated data
+        _server_settings["mcp_server"].update(validated_data)
+        
+        # Log the change
+        logger.info(f"MCP Server settings updated: {validated_data}")
+        
+        return jsonify({
+            "success": True,
+            "settings": _server_settings["mcp_server"],
+            "message": "MCP Server settings updated",
+            "note": "Server restart may be required for host/port changes to take effect",
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error updating MCP server settings: {str(e)}")
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+@app.route("/api/config/external-access", methods=["POST"])
+def set_external_access():
+    """Enable or disable external access for the MCP server"""
+    try:
+        data = request.get_json()
+        enabled = data.get("enabled", False)
+        host = data.get("host", "0.0.0.0")
+        
+        # Validate enabled is boolean
+        if not isinstance(enabled, bool):
+            return jsonify({"error": "enabled must be a boolean value"}), 400
+        
+        # Validate host format
+        import re
+        if not re.match(r'^(localhost|0\.0\.0\.0|127\.0\.0\.1|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$', host):
+            return jsonify({"error": f"Invalid host address: {host}"}), 400
+        
+        # Update settings
+        _server_settings["mcp_server"]["external_access_enabled"] = enabled
+        
+        if enabled:
+            _server_settings["mcp_server"]["host"] = host
+            _server_settings["mcp_server"]["external_host"] = host
+            message = f"External access enabled. Server will accept connections on {host}:{_server_settings['mcp_server']['port']}"
+            logger.warning(f"⚠️ External access enabled for MCP server on {host}")
+        else:
+            _server_settings["mcp_server"]["host"] = "127.0.0.1"
+            message = "External access disabled. Server will only accept local connections."
+            logger.info("External access disabled for MCP server")
+        
+        return jsonify({
+            "success": True,
+            "external_access_enabled": enabled,
+            "host": _server_settings["mcp_server"]["host"],
+            "port": _server_settings["mcp_server"]["port"],
+            "message": message,
+            "warning": "Server restart required for changes to take effect" if enabled else None,
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error setting external access: {str(e)}")
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+@app.route("/api/config/generate-api-key", methods=["POST"])
+def generate_api_key():
+    """Generate a new API key for authentication"""
+    try:
+        import secrets
+        import string
+        
+        # Generate a secure API key
+        alphabet = string.ascii_letters + string.digits
+        api_key = "hx_" + ''.join(secrets.choice(alphabet) for _ in range(32))
+        
+        # Store the API key
+        _server_settings["mcp_server"]["api_key"] = api_key
+        
+        logger.info("New API key generated")
+        
+        return jsonify({
+            "success": True,
+            "api_key": api_key,
+            "message": "New API key generated successfully",
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error generating API key: {str(e)}")
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+@app.route("/api/config/validate-api-key", methods=["POST"])
+def validate_api_key():
+    """Validate an API key"""
+    try:
+        import secrets
+        
+        data = request.get_json()
+        provided_key = data.get("api_key", "")
+        
+        stored_key = _server_settings["mcp_server"]["api_key"]
+        
+        if not stored_key:
+            return jsonify({
+                "success": True,
+                "valid": True,
+                "message": "No API key configured - all requests allowed"
+            })
+        
+        # Use constant-time comparison to prevent timing attacks
+        is_valid = secrets.compare_digest(provided_key, stored_key)
+        
+        return jsonify({
+            "success": True,
+            "valid": is_valid,
+            "message": "API key is valid" if is_valid else "Invalid API key"
+        })
+    except Exception as e:
+        logger.error(f"Error validating API key: {str(e)}")
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
 # Create the banner after all classes are defined
 BANNER = ModernVisualEngine.create_banner()
 

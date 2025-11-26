@@ -259,6 +259,43 @@ class ApiClient {
     });
     return response.data;
   }
+
+  // ============================================================================
+  // Settings & Configuration
+  // ============================================================================
+
+  async getSettings(): Promise<ApiResponse> {
+    const response = await this.client.get('/api/config/settings');
+    return response.data;
+  }
+
+  async updateSettings(settings: any): Promise<ApiResponse> {
+    const response = await this.client.put('/api/config/settings', settings);
+    return response.data;
+  }
+
+  async getMCPServerStatus(): Promise<ApiResponse> {
+    const response = await this.client.get('/api/config/mcp-status');
+    return response.data;
+  }
+
+  async updateMCPServerSettings(settings: any): Promise<ApiResponse> {
+    const response = await this.client.put('/api/config/mcp-server', settings);
+    return response.data;
+  }
+
+  async setExternalAccess(enabled: boolean, host?: string): Promise<ApiResponse> {
+    const response = await this.client.post('/api/config/external-access', {
+      enabled,
+      host: host || '0.0.0.0',
+    });
+    return response.data;
+  }
+
+  async generateApiKey(): Promise<ApiResponse> {
+    const response = await this.client.post('/api/config/generate-api-key');
+    return response.data;
+  }
 }
 
 // Export singleton instance

@@ -12,6 +12,7 @@ import scansReducer from './slices/scansSlice';
 import toolsReducer from './slices/toolsSlice';
 import vulnerabilitiesReducer from './slices/vulnerabilitiesSlice';
 import notificationsReducer from './slices/notificationsSlice';
+import settingsReducer from './slices/settingsSlice';
 
 export const store = configureStore({
   reducer: {
@@ -21,6 +22,7 @@ export const store = configureStore({
     tools: toolsReducer,
     vulnerabilities: vulnerabilitiesReducer,
     notifications: notificationsReducer,
+    settings: settingsReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
