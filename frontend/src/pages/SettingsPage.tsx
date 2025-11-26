@@ -40,12 +40,16 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import WarningIcon from '@mui/icons-material/Warning';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { useAppSelector, useAppDispatch } from '../store';
 import {
   setMCPServerSettings,
   setExternalAccessEnabled,
   setThemeSettings,
   setAPISettings,
+  setAIProviderSettings,
   setNotificationSettings,
   saveSettings,
   resetSettings,
@@ -57,6 +61,7 @@ const SettingsPage = () => {
   const settings = useAppSelector((state) => state.settings);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showCopySuccess, setShowCopySuccess] = useState(false);
+  const [showOpenRouterKey, setShowOpenRouterKey] = useState(false);
 
   const handleSaveSettings = () => {
     dispatch(saveSettings());
@@ -307,6 +312,155 @@ const SettingsPage = () => {
                       />
                     </Box>
                   </Paper>
+                </Grid>
+              )}
+            </Grid>
+          </Paper>
+        </Grid>
+
+        {/* OpenRouter AI Configuration */}
+        <Grid size={12}>
+          <Paper sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <SmartToyIcon sx={{ mr: 1, color: 'success.main' }} />
+              <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                OpenRouter AI Configuration
+              </Typography>
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Configure OpenRouter API for AI-powered security analysis and agent capabilities.
+              Get your API key from{' '}
+              <a
+                href="https://openrouter.ai/keys"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: '#00ff41' }}
+              >
+                openrouter.ai/keys
+              </a>
+            </Typography>
+
+            <Grid container spacing={3}>
+              <Grid size={{ xs: 12, md: 4 }}>
+                <Card
+                  sx={{
+                    bgcolor: settings.aiProvider.openRouterEnabled ? 'success.main' : 'action.disabledBackground',
+                    color: settings.aiProvider.openRouterEnabled ? 'white' : 'text.secondary',
+                    transition: 'all 0.3s ease',
+                  }}
+                >
+                  <CardContent>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Box>
+                        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                          OpenRouter Status
+                        </Typography>
+                        <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                          {settings.aiProvider.openRouterEnabled ? 'AI features enabled' : 'AI features disabled'}
+                        </Typography>
+                      </Box>
+                      <Switch
+                        checked={settings.aiProvider.openRouterEnabled}
+                        onChange={(e) => dispatch(setAIProviderSettings({ openRouterEnabled: e.target.checked }))}
+                        color="default"
+                        sx={{
+                          '& .MuiSwitch-switchBase.Mui-checked': {
+                            color: 'white',
+                          },
+                        }}
+                      />
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              <Grid size={{ xs: 12, md: 8 }}>
+                <TextField
+                  fullWidth
+                  label="OpenRouter API Key"
+                  type={showOpenRouterKey ? 'text' : 'password'}
+                  value={settings.aiProvider.openRouterApiKey}
+                  onChange={(e) => dispatch(setAIProviderSettings({ openRouterApiKey: e.target.value }))}
+                  placeholder="sk-or-v1-..."
+                  helperText="Your OpenRouter API key for AI-powered features"
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SecurityIcon />
+                      </InputAdornment>
+                    ),
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <Tooltip title={showOpenRouterKey ? 'Hide API Key' : 'Show API Key'}>
+                          <IconButton onClick={() => setShowOpenRouterKey(!showOpenRouterKey)}>
+                            {showOpenRouterKey ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Copy API Key">
+                          <IconButton
+                            onClick={() => copyToClipboard(settings.aiProvider.openRouterApiKey)}
+                            disabled={!settings.aiProvider.openRouterApiKey}
+                          >
+                            <ContentCopyIcon />
+                          </IconButton>
+                        </Tooltip>
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+
+              <Grid size={12}>
+                <FormControl fullWidth>
+                  <InputLabel>AI Model</InputLabel>
+                  <Select
+                    value={settings.aiProvider.openRouterModel}
+                    label="AI Model"
+                    onChange={(e) => dispatch(setAIProviderSettings({ openRouterModel: e.target.value }))}
+                    disabled={!settings.aiProvider.openRouterEnabled}
+                  >
+                    <MenuItem value="anthropic/claude-3.5-sonnet">🧠 Claude 3.5 Sonnet (Recommended)</MenuItem>
+                    <MenuItem value="anthropic/claude-3-opus">🔬 Claude 3 Opus (Most Capable)</MenuItem>
+                    <MenuItem value="openai/gpt-4-turbo">⚡ GPT-4 Turbo</MenuItem>
+                    <MenuItem value="openai/gpt-4o">🚀 GPT-4o</MenuItem>
+                    <MenuItem value="google/gemini-pro">💎 Gemini Pro</MenuItem>
+                    <MenuItem value="meta-llama/llama-3.1-70b-instruct">🦙 Llama 3.1 70B</MenuItem>
+                    <MenuItem value="mistralai/mixtral-8x7b-instruct">🌪️ Mixtral 8x7B</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              {settings.aiProvider.openRouterEnabled && settings.aiProvider.openRouterApiKey && (
+                <Grid size={12}>
+                  <Alert severity="success" icon={<CheckCircleIcon />}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                      OpenRouter Connected
+                    </Typography>
+                    <Typography variant="body2">
+                      AI-powered security analysis is now available. Your agents can use advanced AI capabilities for vulnerability detection and exploit generation.
+                    </Typography>
+                  </Alert>
+                </Grid>
+              )}
+
+              {settings.aiProvider.openRouterEnabled && !settings.aiProvider.openRouterApiKey && (
+                <Grid size={12}>
+                  <Alert severity="warning" icon={<WarningIcon />}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                      API Key Required
+                    </Typography>
+                    <Typography variant="body2">
+                      Please enter your OpenRouter API key to enable AI features. You can get one at{' '}
+                      <a
+                        href="https://openrouter.ai/keys"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: 'inherit', fontWeight: 600 }}
+                      >
+                        openrouter.ai/keys
+                      </a>
+                    </Typography>
+                  </Alert>
                 </Grid>
               )}
             </Grid>

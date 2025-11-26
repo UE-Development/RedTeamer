@@ -27,6 +27,12 @@ export interface APISettings {
   retryAttempts: number;
 }
 
+export interface AIProviderSettings {
+  openRouterApiKey: string;
+  openRouterModel: string;
+  openRouterEnabled: boolean;
+}
+
 export interface NotificationSettings {
   enabled: boolean;
   soundEnabled: boolean;
@@ -39,6 +45,7 @@ export interface SettingsState {
   mcpServer: MCPServerSettings;
   theme: ThemeSettings;
   api: APISettings;
+  aiProvider: AIProviderSettings;
   notifications: NotificationSettings;
   loading: boolean;
   error: string | null;
@@ -65,6 +72,11 @@ const initialState: SettingsState = {
     websocketUrl: 'ws://localhost:8888',
     timeout: 30000,
     retryAttempts: 3,
+  },
+  aiProvider: {
+    openRouterApiKey: '',
+    openRouterModel: 'anthropic/claude-3.5-sonnet',
+    openRouterEnabled: false,
   },
   notifications: {
     enabled: true,
@@ -100,6 +112,9 @@ const settingsSlice = createSlice({
     setAPISettings: (state, action: PayloadAction<Partial<APISettings>>) => {
       state.api = { ...state.api, ...action.payload };
     },
+    setAIProviderSettings: (state, action: PayloadAction<Partial<AIProviderSettings>>) => {
+      state.aiProvider = { ...state.aiProvider, ...action.payload };
+    },
     setNotificationSettings: (state, action: PayloadAction<Partial<NotificationSettings>>) => {
       state.notifications = { ...state.notifications, ...action.payload };
     },
@@ -122,6 +137,7 @@ export const {
   setExternalAccessEnabled,
   setThemeSettings,
   setAPISettings,
+  setAIProviderSettings,
   setNotificationSettings,
   setLoading,
   setError,
