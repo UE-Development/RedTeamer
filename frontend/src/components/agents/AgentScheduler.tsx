@@ -239,8 +239,21 @@ const AgentScheduler = ({
       } else {
         // Generate unique ID inside the state updater to avoid impure function during render
         setInternalTasks((prev) => {
+          // Use crypto.randomUUID with fallback for older browsers
+          const generateId = () => {
+            if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+              return crypto.randomUUID();
+            }
+            // Fallback for older browsers
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+              const r = (Math.random() * 16) | 0;
+              const v = c === 'x' ? r : (r & 0x3) | 0x8;
+              return v.toString(16);
+            });
+          };
+          
           const newTask: ScheduledTask = {
-            id: `task-${crypto.randomUUID()}`,
+            id: `task-${generateId()}`,
             ...taskData,
             nextRun: calculateNextRun(taskData.schedule),
             createdAt: new Date().toISOString(),
@@ -276,22 +289,57 @@ const AgentScheduler = ({
     const [hours, minutes] = schedule.time.split(':').map(Number);
     
     const next = new Date(now);
-    next.setHours(hours, minutes, 0, 0);
+    next.setSeconds(0, 0);
     
-    if (next <= now) {
-      switch (schedule.type) {
-        case 'hourly':
-          next.setHours(next.getHours() + 1);
-          break;
-        case 'daily':
+    switch (schedule.type) {
+      case 'once':
+        next.setHours(hours, minutes);
+        if (next <= now) {
           next.setDate(next.getDate() + 1);
-          break;
-        case 'weekly':
-          next.setDate(next.getDate() + 7);
-          break;
-        case 'monthly':
+        }
+        break;
+        
+      case 'hourly':
+        // Set minutes based on schedule time, keep current hour
+        next.setMinutes(minutes);
+        if (next <= now) {
+          next.setHours(next.getHours() + 1);
+        }
+        break;
+        
+      case 'daily':
+        next.setHours(hours, minutes);
+        if (next <= now) {
+          next.setDate(next.getDate() + 1);
+        }
+        break;
+        
+      case 'weekly': {
+        const targetDay = schedule.dayOfWeek ?? 0;
+        next.setHours(hours, minutes);
+        
+        // Calculate days until target day
+        const currentDay = next.getDay();
+        let daysUntilTarget = targetDay - currentDay;
+        
+        if (daysUntilTarget < 0 || (daysUntilTarget === 0 && next <= now)) {
+          daysUntilTarget += 7;
+        }
+        
+        next.setDate(next.getDate() + daysUntilTarget);
+        break;
+      }
+        
+      case 'monthly': {
+        const targetDay = Math.min(schedule.dayOfMonth ?? 1, 28); // Cap at 28 to avoid edge cases
+        next.setHours(hours, minutes);
+        next.setDate(targetDay);
+        
+        if (next <= now) {
           next.setMonth(next.getMonth() + 1);
-          break;
+          next.setDate(targetDay);
+        }
+        break;
       }
     }
     
@@ -334,7 +382,10 @@ const AgentScheduler = ({
     }
   };
 
-  const getScheduleChipColor = (type: ScheduleConfig['type']) => {
+  // Type for chip color to avoid type assertion
+  type ChipColor = 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning';
+
+  const getScheduleChipColor = (type: ScheduleConfig['type']): ChipColor => {
     switch (type) {
       case 'hourly':
         return 'warning';
@@ -431,7 +482,7 @@ const AgentScheduler = ({
                         <Chip
                           label={task.schedule.type}
                           size="small"
-                          color={getScheduleChipColor(task.schedule.type) as 'primary' | 'secondary' | 'default' | 'error' | 'info' | 'success' | 'warning'}
+                          color={getScheduleChipColor(task.schedule.type)}
                           variant="outlined"
                         />
                         {!task.enabled && (
