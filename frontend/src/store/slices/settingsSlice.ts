@@ -65,7 +65,7 @@ export interface SettingsState {
 const defaultSettings: SettingsState = {
   mcpServer: {
     host: '127.0.0.1',
-    port: 8888,
+    port: 8889,
     enabled: true,
     externalAccessEnabled: false,
     externalHost: '0.0.0.0',
@@ -78,8 +78,8 @@ const defaultSettings: SettingsState = {
     accentColor: '#ff5252',
   },
   api: {
-    baseUrl: 'http://localhost:8888',
-    websocketUrl: 'ws://localhost:8888',
+    baseUrl: 'http://localhost:8889',
+    websocketUrl: 'ws://localhost:8889',
     timeout: 30000,
     retryAttempts: 3,
   },

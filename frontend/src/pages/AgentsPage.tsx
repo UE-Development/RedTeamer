@@ -35,8 +35,34 @@ import {
   AgentScheduler,
 } from '../components/agents';
 import type { CollaborationTask, CollaborationWorkflow } from '../components/agents';
-import type { Agent, AgentMessage } from '../types';
+import type { Agent, AgentMessage, AgentType, AgentStatus } from '../types';
 import { apiClient } from '../services/api';
+
+// Valid agent types and statuses
+const VALID_AGENT_TYPES: AgentType[] = [
+  'bugbounty', 'ctf', 'cve_intelligence', 'exploit_generator',
+  'web_security', 'auth_testing', 'mobile_security', 'cloud_security',
+  'binary_analysis', 'osint', 'network_recon', 'report_generator'
+];
+const VALID_AGENT_STATUSES: AgentStatus[] = ['active', 'standby', 'busy', 'error'];
+
+// Helper function to validate and normalize agent type
+function validateAgentType(type: string): AgentType {
+  if (VALID_AGENT_TYPES.includes(type as AgentType)) {
+    return type as AgentType;
+  }
+  // Default to a generic type if unknown
+  return 'bugbounty';
+}
+
+// Helper function to validate and normalize agent status
+function validateAgentStatus(status: string): AgentStatus {
+  if (VALID_AGENT_STATUSES.includes(status as AgentStatus)) {
+    return status as AgentStatus;
+  }
+  // Default to standby if unknown
+  return 'standby';
+}
 
 // Interface for agent message API response
 interface AgentMessageResponse {
@@ -273,8 +299,42 @@ const AgentsPage = () => {
     if (mockDataEnabled) {
       dispatch(setAgents(mockAgents));
     } else {
-      dispatch(setAgents([]));
-      dispatch(setSelectedAgent(null));
+      // Fetch agents from backend API when demo mode is off
+      const fetchAgents = async () => {
+        try {
+          dispatch(setLoading(true));
+          const response = await apiClient.listAgents();
+          if (response.success && Array.isArray(response.data)) {
+            // Transform backend agent data to match frontend Agent type
+            const transformedAgents: Agent[] = response.data.map((agent: {
+              id: string;
+              name: string;
+              type: string;
+              status: string;
+              capabilities?: string[];
+              description?: string;
+            }) => ({
+              id: agent.id,
+              name: agent.name,
+              type: validateAgentType(agent.type),
+              status: validateAgentStatus(agent.status),
+              capabilities: agent.capabilities || [],
+              lastActive: new Date().toISOString(),
+              description: agent.description || '',
+            }));
+            dispatch(setAgents(transformedAgents));
+          } else {
+            // If no agents from backend, set empty array
+            dispatch(setAgents([]));
+          }
+        } catch (error) {
+          console.error('Failed to fetch agents from backend:', error);
+          dispatch(setAgents([]));
+        } finally {
+          dispatch(setLoading(false));
+        }
+      };
+      fetchAgents();
     }
   }, [dispatch, mockDataEnabled]);
 
@@ -283,7 +343,6 @@ const AgentsPage = () => {
   useEffect(() => {
     if (mockDataEnabled && agents.length > 0 && !workflowInitializedRef.current) {
       workflowInitializedRef.current = true;
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setWorkflow(createMockWorkflow(agents));
     } else if (!mockDataEnabled) {
       workflowInitializedRef.current = false;
@@ -308,11 +367,30 @@ const AgentsPage = () => {
   );
 
   const handleToggleAgent = useCallback(
-    (agent: Agent) => {
+    async (agent: Agent) => {
       const newStatus: Agent['status'] = agent.status === 'active' || agent.status === 'busy' ? 'standby' : 'active';
-      dispatch(updateAgent({ ...agent, status: newStatus }));
+      
+      if (mockDataEnabled) {
+        // Mock mode: just update locally
+        dispatch(updateAgent({ ...agent, status: newStatus }));
+      } else {
+        // Real mode: call backend API
+        try {
+          if (newStatus === 'active') {
+            await apiClient.activateAgent(agent.id);
+          } else {
+            await apiClient.deactivateAgent(agent.id);
+          }
+          // Only update local state on success
+          dispatch(updateAgent({ ...agent, status: newStatus }));
+        } catch (error) {
+          // Don't update local state on failure to keep frontend and backend in sync
+          console.error('Failed to toggle agent status:', error);
+          // Optionally could show a notification to user here
+        }
+      }
     },
-    [dispatch]
+    [dispatch, mockDataEnabled]
   );
 
   const handleSendMessage = useCallback(
@@ -508,7 +586,7 @@ const AgentsPage = () => {
         }
       }
     },
-    [mockDataEnabled, agents]
+    [mockDataEnabled]
   );
 
   const handleRemoveChat = useCallback((agentId: string) => {
