@@ -1250,7 +1250,7 @@ const secureStorage = {
 - [x] Build agent workflow visualizer
 - [x] Implement agent performance metrics
 - [x] Add agent configuration panels
-- [ ] Create agent capability explorer
+- [x] Create agent capability explorer
 - [ ] Build agent scheduling system
 
 ### Phase 3: Tool Management (Months 5-6)
@@ -1298,19 +1298,19 @@ const secureStorage = {
 
 #### Sprint 9: Vulnerability Display
 - [x] Build vulnerability card components
-- [ ] Create vulnerability detail pages
+- [x] Create vulnerability detail pages
 - [x] Implement severity color coding
 - [x] Add CVE/CWE integration
-- [ ] Build CVSS calculator
+- [x] Build CVSS calculator
 - [x] Create vulnerability filtering system
 - [x] Implement vulnerability search
 
 #### Sprint 10: Vulnerability Workflow
-- [ ] Build vulnerability status workflow
+- [x] Build vulnerability status workflow
 - [x] Create remediation guidance system
 - [x] Add proof-of-concept viewer
-- [ ] Implement vulnerability export (PDF, JSON, CSV)
-- [ ] Build vulnerability timeline
+- [x] Implement vulnerability export (PDF, JSON, CSV)
+- [x] Build vulnerability timeline
 - [ ] Create vulnerability comparison tool
 - [ ] Add vulnerability ticketing integration (Jira, GitHub Issues)
 
@@ -1328,7 +1328,7 @@ const secureStorage = {
 #### Sprint 12: Analytics & Insights
 - [x] Build analytics dashboard
 - [x] Create vulnerability trend charts
-- [ ] Implement risk scoring system
+- [x] Implement risk scoring system
 - [ ] Add benchmark comparisons
 - [ ] Build security posture visualization
 - [ ] Create compliance tracking
