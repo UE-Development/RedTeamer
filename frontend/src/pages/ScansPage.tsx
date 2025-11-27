@@ -18,6 +18,8 @@ import {
   ListItemText,
   Divider,
   ListItemButton,
+  Snackbar,
+  Alert,
 } from '@mui/material';
 import RadarIcon from '@mui/icons-material/Radar';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
@@ -28,6 +30,8 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import AddIcon from '@mui/icons-material/Add';
+import { ScanCreationWizard } from '../components/scans';
 
 interface Scan {
   id: string;
@@ -109,6 +113,41 @@ const MOCK_SCANS: Scan[] = [
 const ScansPage = () => {
   const [scans, setScans] = useState<Scan[]>(MOCK_SCANS);
   const [selectedScan, setSelectedScan] = useState<Scan | null>(scans[0]);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+    open: false,
+    message: '',
+    severity: 'success',
+  });
+
+  // Handle new scan creation
+  const handleCreateScan = (scanConfig: { target: string; scanType: string; selectedTools: string[] }) => {
+    const newScan: Scan = {
+      id: `scan-${Date.now()}`,
+      target: scanConfig.target,
+      type: scanConfig.scanType.charAt(0).toUpperCase() + scanConfig.scanType.slice(1),
+      status: 'running',
+      progress: 0,
+      currentPhase: 'Phase 1: Reconnaissance',
+      phases: [
+        { name: 'Phase 1: Reconnaissance', status: 'running', progress: 0 },
+        { name: 'Phase 2: Scanning', status: 'pending', progress: 0 },
+        { name: 'Phase 3: Vulnerability Testing', status: 'pending', progress: 0 },
+      ],
+      startTime: new Date(),
+      duration: 0,
+      vulnerabilitiesFound: 0,
+      toolsUsed: scanConfig.selectedTools,
+    };
+
+    setScans((prev) => [newScan, ...prev]);
+    setSelectedScan(newScan);
+    setSnackbar({
+      open: true,
+      message: `Scan started for ${scanConfig.target}`,
+      severity: 'success',
+    });
+  };
 
   // Simulate real-time progress updates
   useEffect(() => {
@@ -178,10 +217,29 @@ const ScansPage = () => {
           <RadarIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
           Security Scans
         </Typography>
-        <Button variant="contained" startIcon={<PlayArrowIcon />}>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={() => setWizardOpen(true)}>
           New Scan
         </Button>
       </Box>
+
+      {/* Scan Creation Wizard */}
+      <ScanCreationWizard
+        open={wizardOpen}
+        onClose={() => setWizardOpen(false)}
+        onSubmit={handleCreateScan}
+      />
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
 
       <Grid container spacing={3}>
         {/* Scans List */}
