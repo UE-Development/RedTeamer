@@ -14,4 +14,6 @@ export { default as MultiAgentChat } from './MultiAgentChat';
 export { default as AgentCollaborationView } from './AgentCollaborationView';
 export { default as AgentConfigurationPanel } from './AgentConfigurationPanel';
 export { default as AgentCapabilityExplorer } from './AgentCapabilityExplorer';
+export { default as AgentScheduler } from './AgentScheduler';
 export type { CollaborationTask, CollaborationWorkflow } from './AgentCollaborationView';
+export type { ScheduledTask } from './AgentScheduler';
