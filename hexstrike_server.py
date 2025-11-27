@@ -17565,6 +17565,43 @@ def validate_api_key():
         logger.error(f"Error validating API key: {str(e)}")
         return jsonify({"error": f"Server error: {str(e)}"}), 500
 
+# ============================================================================
+# PORT AVAILABILITY CHECK AND FALLBACK
+# ============================================================================
+
+def is_port_available(port: int, host: str = "0.0.0.0") -> bool:
+    """Check if a port is available for binding"""
+    try:
+        test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        test_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        test_socket.bind((host, port))
+        test_socket.close()
+        return True
+    except OSError:
+        return False
+
+def find_available_port(start_port: int, max_attempts: int = 10, host: str = "0.0.0.0") -> int:
+    """Find an available port starting from start_port"""
+    for offset in range(max_attempts):
+        port = start_port + offset
+        if is_port_available(port, host):
+            return port
+    return -1
+
+def get_process_using_port(port: int) -> Optional[str]:
+    """Try to identify what process is using a port"""
+    try:
+        for conn in psutil.net_connections(kind='inet'):
+            if conn.laddr.port == port:
+                try:
+                    process = psutil.Process(conn.pid)
+                    return f"{process.name()} (PID: {conn.pid})"
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    return f"PID: {conn.pid}"
+    except (psutil.AccessDenied, PermissionError):
+        pass
+    return None
+
 # Create the banner after all classes are defined
 BANNER = ModernVisualEngine.create_banner()
 
@@ -17575,6 +17612,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run the HexStrike AI API Server")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
     parser.add_argument("--port", type=int, default=API_PORT, help=f"Port for the API server (default: {API_PORT})")
+    parser.add_argument("--host", type=str, default="0.0.0.0", help="Host to bind the server to (default: 0.0.0.0)")
+    parser.add_argument("--auto-port", action="store_true", help="Automatically find an available port if the specified port is in use")
     args = parser.parse_args()
 
     if args.debug:
@@ -17584,11 +17623,50 @@ if __name__ == "__main__":
     if args.port != API_PORT:
         API_PORT = args.port
 
+    SERVER_HOST = args.host
+
+    # Check if the requested port is available
+    original_port = API_PORT
+    if not is_port_available(API_PORT, SERVER_HOST):
+        process_info = get_process_using_port(API_PORT)
+        if process_info:
+            logger.warning(f"⚠️  Port {API_PORT} is in use by: {process_info}")
+        else:
+            logger.warning(f"⚠️  Port {API_PORT} is already in use")
+
+        if args.auto_port:
+            # Try to find an available port
+            new_port = find_available_port(API_PORT + 1)
+            if new_port > 0:
+                logger.info(f"🔄 Auto-switching to available port: {new_port}")
+                API_PORT = new_port
+            else:
+                logger.error(f"❌ Could not find an available port after checking {API_PORT} to {API_PORT + 10}")
+                logger.error("   Please free up a port or specify a different port with --port")
+                sys.exit(1)
+        else:
+            logger.error(f"❌ Port {API_PORT} is already in use!")
+            logger.error("")
+            logger.error("   To fix this issue, you can:")
+            logger.error(f"   1. Kill the process using port {API_PORT}:")
+            if process_info:
+                logger.error(f"      sudo kill -9 $(lsof -t -i:{API_PORT})")
+            else:
+                logger.error(f"      sudo lsof -i:{API_PORT}  # Find the process")
+                logger.error(f"      sudo kill -9 <PID>       # Kill it")
+            logger.error(f"   2. Use a different port:")
+            logger.error(f"      ./start-server.sh --port=9000")
+            logger.error(f"   3. Use automatic port selection:")
+            logger.error(f"      python hexstrike_server.py --auto-port")
+            logger.error("")
+            sys.exit(1)
+
     # Enhanced startup messages with beautiful formatting
     startup_info = f"""
 {ModernVisualEngine.COLORS['MATRIX_GREEN']}{ModernVisualEngine.COLORS['BOLD']}╭─────────────────────────────────────────────────────────────────────────────╮{ModernVisualEngine.COLORS['RESET']}
 {ModernVisualEngine.COLORS['BOLD']}│{ModernVisualEngine.COLORS['RESET']} {ModernVisualEngine.COLORS['NEON_BLUE']}🚀 Starting HexStrike AI Tools API Server{ModernVisualEngine.COLORS['RESET']}
 {ModernVisualEngine.COLORS['BOLD']}├─────────────────────────────────────────────────────────────────────────────┤{ModernVisualEngine.COLORS['RESET']}
+{ModernVisualEngine.COLORS['BOLD']}│{ModernVisualEngine.COLORS['RESET']} {ModernVisualEngine.COLORS['CYBER_ORANGE']}🌐 Host:{ModernVisualEngine.COLORS['RESET']} {SERVER_HOST}
 {ModernVisualEngine.COLORS['BOLD']}│{ModernVisualEngine.COLORS['RESET']} {ModernVisualEngine.COLORS['CYBER_ORANGE']}🌐 Port:{ModernVisualEngine.COLORS['RESET']} {API_PORT}
 {ModernVisualEngine.COLORS['BOLD']}│{ModernVisualEngine.COLORS['RESET']} {ModernVisualEngine.COLORS['WARNING']}🔧 Debug Mode:{ModernVisualEngine.COLORS['RESET']} {DEBUG_MODE}
 {ModernVisualEngine.COLORS['BOLD']}│{ModernVisualEngine.COLORS['RESET']} {ModernVisualEngine.COLORS['ELECTRIC_PURPLE']}💾 Cache Size:{ModernVisualEngine.COLORS['RESET']} {CACHE_SIZE} | TTL: {CACHE_TTL}s
@@ -17597,8 +17675,13 @@ if __name__ == "__main__":
 {ModernVisualEngine.COLORS['MATRIX_GREEN']}{ModernVisualEngine.COLORS['BOLD']}╰─────────────────────────────────────────────────────────────────────────────╯{ModernVisualEngine.COLORS['RESET']}
 """
 
+    if original_port != API_PORT:
+        startup_info += f"""
+{ModernVisualEngine.COLORS['WARNING']}⚠️  Note: Original port {original_port} was in use, now using port {API_PORT}{ModernVisualEngine.COLORS['RESET']}
+"""
+
     for line in startup_info.strip().split('\n'):
         if line.strip():
             logger.info(line)
 
-    app.run(host="0.0.0.0", port=API_PORT, debug=DEBUG_MODE)
+    app.run(host=SERVER_HOST, port=API_PORT, debug=DEBUG_MODE)
