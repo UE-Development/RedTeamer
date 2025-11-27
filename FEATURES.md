@@ -1270,7 +1270,7 @@ const secureStorage = {
 - [x] Build log streaming viewer with filtering
 - [ ] Implement process tree visualization
 - [x] Add pause/resume/stop controls
-- [ ] Create tool chain builder (workflows)
+- [x] Create tool chain builder (workflows)
 - [ ] Build tool output parsers
 - [ ] Implement tool result exporters
 
@@ -1282,8 +1282,8 @@ const secureStorage = {
 - [x] Create scan template manager
 - [x] Add target management interface
 - [x] Build scan history viewer
-- [ ] Implement scan comparison tool
-- [ ] Create scan export functionality
+- [x] Implement scan comparison tool
+- [x] Create scan export functionality
 
 #### Sprint 8: Real-time Monitoring
 - [x] Build live scan monitor with phases

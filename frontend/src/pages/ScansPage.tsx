@@ -3,7 +3,7 @@
  * Live monitoring and management of security scans
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -20,6 +20,7 @@ import {
   ListItemButton,
   Snackbar,
   Alert,
+  ButtonGroup,
 } from '@mui/material';
 import RadarIcon from '@mui/icons-material/Radar';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
@@ -31,7 +32,9 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import AddIcon from '@mui/icons-material/Add';
-import { ScanCreationWizard } from '../components/scans';
+import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
+import { ScanCreationWizard, ScanExporter, ScanComparisonTool } from '../components/scans';
+import type { ScanData } from '../components/scans';
 import { useAppSelector } from '../store';
 
 interface Scan {
@@ -116,6 +119,8 @@ const ScansPage = () => {
   const [scans, setScans] = useState<Scan[]>([]);
   const [selectedScan, setSelectedScan] = useState<Scan | null>(null);
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [exporterOpen, setExporterOpen] = useState(false);
+  const [comparisonOpen, setComparisonOpen] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -132,6 +137,56 @@ const ScansPage = () => {
       setSelectedScan(null);
     }
   }, [mockDataEnabled]);
+
+  // Generate deterministic demo values based on scan ID
+  const getDemoValues = (scanId: string) => {
+    const hash = scanId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return {
+      hosts: (hash % 10) + 5,
+      ports: (hash % 50) + 20,
+      services: (hash % 20) + 10,
+    };
+  };
+
+  // Convert Scan to ScanData for export
+  const convertToScanData = (scan: Scan): ScanData => {
+    const demoValues = getDemoValues(scan.id);
+    return {
+      ...scan,
+      results: {
+        hosts: demoValues.hosts,
+        ports: demoValues.ports,
+        services: demoValues.services,
+        vulnerabilities: [
+          { severity: 'critical', title: 'SQL Injection in /admin/login' },
+          { severity: 'high', title: 'XSS vulnerability in search form' },
+          { severity: 'medium', title: 'Missing HTTPS redirect' },
+        ].slice(0, scan.vulnerabilitiesFound),
+      },
+    };
+  };
+
+  // Convert scans for comparison tool
+  const scansForComparison = useMemo(() => {
+    return scans
+      .filter((s) => s.status === 'completed')
+      .map((scan) => {
+        const demoValues = getDemoValues(scan.id);
+        return {
+          ...scan,
+          results: {
+            hosts: demoValues.hosts,
+            ports: demoValues.ports,
+            services: demoValues.services,
+            vulnerabilities: [
+              { id: 'vuln-1', severity: 'critical', title: 'SQL Injection', location: '/admin' },
+              { id: 'vuln-2', severity: 'high', title: 'XSS Vulnerability', location: '/search' },
+              { id: 'vuln-3', severity: 'medium', title: 'Missing Headers', location: '/' },
+            ].slice(0, scan.vulnerabilitiesFound),
+          },
+        };
+      });
+  }, [scans]);
 
   // Handle new scan creation
   const handleCreateScan = (scanConfig: { target: string; scanType: string; selectedTools: string[] }) => {
@@ -183,7 +238,9 @@ const ScansPage = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const getStatusColor = (status: Scan['status']) => {
+  type ChipColor = 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning';
+
+  const getStatusColor = (status: Scan['status']): ChipColor => {
     switch (status) {
       case 'running':
         return 'primary';
@@ -230,9 +287,18 @@ const ScansPage = () => {
           <RadarIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
           Security Scans
         </Typography>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => setWizardOpen(true)}>
-          New Scan
-        </Button>
+        <ButtonGroup variant="contained">
+          <Button startIcon={<AddIcon />} onClick={() => setWizardOpen(true)}>
+            New Scan
+          </Button>
+          <Button
+            startIcon={<CompareArrowsIcon />}
+            onClick={() => setComparisonOpen(true)}
+            disabled={scansForComparison.length < 2}
+          >
+            Compare
+          </Button>
+        </ButtonGroup>
       </Box>
 
       {/* Scan Creation Wizard */}
@@ -240,6 +306,27 @@ const ScansPage = () => {
         open={wizardOpen}
         onClose={() => setWizardOpen(false)}
         onSubmit={handleCreateScan}
+      />
+
+      {/* Scan Exporter */}
+      <ScanExporter
+        open={exporterOpen}
+        onClose={() => setExporterOpen(false)}
+        scan={selectedScan ? convertToScanData(selectedScan) : null}
+        onExport={(_, filename) => {
+          setSnackbar({
+            open: true,
+            message: `Exported: ${filename}`,
+            severity: 'success',
+          });
+        }}
+      />
+
+      {/* Scan Comparison Tool */}
+      <ScanComparisonTool
+        open={comparisonOpen}
+        onClose={() => setComparisonOpen(false)}
+        scans={scansForComparison}
       />
 
       {/* Snackbar for notifications */}
@@ -284,7 +371,7 @@ const ScansPage = () => {
                           <Chip
                             label={scan.status}
                             size="small"
-                            color={getStatusColor(scan.status) as any}
+                            color={getStatusColor(scan.status)}
                             icon={getStatusIcon(scan.status) || undefined}
                           />
                         </Box>
@@ -335,7 +422,7 @@ const ScansPage = () => {
                   </Box>
                   <Chip
                     label={selectedScan.status.toUpperCase()}
-                    color={getStatusColor(selectedScan.status) as any}
+                    color={getStatusColor(selectedScan.status)}
                     icon={getStatusIcon(selectedScan.status) || undefined}
                   />
                 </Box>
@@ -457,7 +544,11 @@ const ScansPage = () => {
                       <Button variant="contained" startIcon={<VisibilityIcon />}>
                         View Report
                       </Button>
-                      <Button variant="outlined" startIcon={<DownloadIcon />}>
+                      <Button
+                        variant="outlined"
+                        startIcon={<DownloadIcon />}
+                        onClick={() => setExporterOpen(true)}
+                      >
                         Export Results
                       </Button>
                     </>

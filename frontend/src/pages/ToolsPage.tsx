@@ -19,11 +19,14 @@ import {
   Button,
   Snackbar,
   Alert,
+  ButtonGroup,
 } from '@mui/material';
 import BuildIcon from '@mui/icons-material/Build';
 import SearchIcon from '@mui/icons-material/Search';
 import FilterListIcon from '@mui/icons-material/FilterList';
-import { ToolCard, ToolDetailDialog } from '../components/tools';
+import AccountTreeIcon from '@mui/icons-material/AccountTree';
+import { ToolCard, ToolDetailDialog, ToolChainBuilder } from '../components/tools';
+import type { Workflow } from '../components/tools';
 import { useAppSelector } from '../store';
 import type { Tool } from '../types';
 import { getAllTools, getToolCounts } from '../data/securityTools';
@@ -37,6 +40,7 @@ const ToolsPage = () => {
   const [favorites, setFavorites] = useState<Set<string>>(new Set(['net-1', 'web-1', 'bin-1']));
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [workflowBuilderOpen, setWorkflowBuilderOpen] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
     open: false,
     message: '',
@@ -86,6 +90,26 @@ const ToolsPage = () => {
     });
   };
 
+  const handleWorkflowSave = (workflow: Workflow) => {
+    console.log('Saving workflow:', workflow);
+    setSnackbar({
+      open: true,
+      message: `Workflow "${workflow.name}" saved successfully!`,
+      severity: 'success',
+    });
+    setWorkflowBuilderOpen(false);
+  };
+
+  const handleWorkflowRun = (workflow: Workflow) => {
+    console.log('Running workflow:', workflow);
+    setSnackbar({
+      open: true,
+      message: `Workflow "${workflow.name}" started with ${workflow.steps.length} steps`,
+      severity: 'info',
+    });
+    setWorkflowBuilderOpen(false);
+  };
+
   // Use dynamic tool counts from the data file
   const dynamicCounts = useMemo(() => getToolCounts(), []);
   const toolStats = {
@@ -121,21 +145,39 @@ const ToolsPage = () => {
           <BuildIcon sx={{ mr: 1, verticalAlign: 'middle', fontSize: { xs: '1.5rem', sm: '2rem' } }} />
           Security Tools ({toolStats.total}+)
         </Typography>
-        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-          <Chip
-            label={`${toolStats.installed} Installed`}
-            color="success"
-            variant="outlined"
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+          <ButtonGroup variant="outlined" size="small">
+            <Chip
+              label={`${toolStats.installed} Installed`}
+              color="success"
+              variant="outlined"
+              size="small"
+            />
+            <Chip
+              label={`${toolStats.total - toolStats.installed} Not Installed`}
+              color="warning"
+              variant="outlined"
+              size="small"
+            />
+          </ButtonGroup>
+          <Button
+            variant="contained"
+            startIcon={<AccountTreeIcon />}
+            onClick={() => setWorkflowBuilderOpen(true)}
             size="small"
-          />
-          <Chip
-            label={`${toolStats.total - toolStats.installed} Not Installed`}
-            color="warning"
-            variant="outlined"
-            size="small"
-          />
+          >
+            Workflow Builder
+          </Button>
         </Box>
       </Box>
+
+      {/* Tool Chain Builder */}
+      <ToolChainBuilder
+        open={workflowBuilderOpen}
+        onClose={() => setWorkflowBuilderOpen(false)}
+        onSave={handleWorkflowSave}
+        onRun={handleWorkflowRun}
+      />
 
       {/* Filters - Mobile optimized */}
       <Paper sx={{ p: { xs: 1.5, sm: 2 }, mb: 3 }}>
