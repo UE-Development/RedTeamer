@@ -1316,12 +1316,14 @@ if [ "$SERVER_HOST" = "0.0.0.0" ]; then
 fi
 
 # Initialize database if hexstrike_database.py exists
+# The database module handles schema versioning internally - it will only
+# apply schema changes when needed, preserving existing data during updates
 VENV_DIR="$SCRIPT_DIR/hexstrike-env"
 if [ -f "$SCRIPT_DIR/hexstrike_database.py" ] && [ -f "$VENV_DIR/bin/python" ]; then
-    echo -e "${CYAN}🗄️  Initializing database...${NC}"
+    echo -e "${CYAN}🗄️  Checking database...${NC}"
     "$VENV_DIR/bin/python" "$SCRIPT_DIR/hexstrike_database.py" --init 2>/dev/null && \
-        echo -e "${GREEN}✅ Database ready${NC}" || \
-        echo -e "${YELLOW}⚠️  Database initialization skipped (may already exist)${NC}"
+        echo -e "${GREEN}✅ Database ready (data preserved)${NC}" || \
+        echo -e "${YELLOW}⚠️  Database check skipped${NC}"
 fi
 
 echo -e "${CYAN}"
@@ -1777,18 +1779,21 @@ initialize_database() {
         return
     fi
     
-    log_step "Initializing Database"
+    log_step "Checking Database"
     
     if [ -f "$SCRIPT_DIR/hexstrike_database.py" ]; then
-        log_info "Initializing SQLite database..."
+        log_info "Checking database schema version..."
+        # The hexstrike_database.py now handles schema versioning internally.
+        # It will only apply changes if the schema version has changed,
+        # preserving existing data during updates.
         if "$VENV_DIR/bin/python" "$SCRIPT_DIR/hexstrike_database.py" --init 2>/dev/null; then
-            log_success "Database initialized successfully"
+            log_success "Database ready (existing data preserved)"
             
             # Show database stats
             log_info "Database statistics:"
             "$VENV_DIR/bin/python" "$SCRIPT_DIR/hexstrike_database.py" --stats 2>/dev/null || true
         else
-            log_warning "Database initialization had issues (may already exist)"
+            log_warning "Database initialization had issues"
         fi
     else
         log_warning "hexstrike_database.py not found, skipping database initialization"
