@@ -17938,7 +17938,10 @@ def is_port_available(port: int, host: str = "0.0.0.0") -> bool:
     except OSError:
         return False
 
-def find_available_port(start_port: int, max_attempts: int = 50, host: str = "0.0.0.0") -> int:
+# Number of ports to check when finding an available port
+PORT_SEARCH_RANGE = 50
+
+def find_available_port(start_port: int, max_attempts: int = PORT_SEARCH_RANGE, host: str = "0.0.0.0") -> int:
     """Find an available port starting from start_port"""
     for offset in range(max_attempts):
         port = start_port + offset
@@ -17962,7 +17965,7 @@ def kill_existing_hexstrike_processes(current_pid: int = None) -> List[int]:
     try:
         for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
             try:
-                # Skip the current process and its parents
+                # Skip the current process
                 if proc.info['pid'] == current_pid:
                     continue
                 
@@ -17971,15 +17974,13 @@ def kill_existing_hexstrike_processes(current_pid: int = None) -> List[int]:
                 
                 # Check if this is a HexStrike server process
                 if 'hexstrike_server.py' in cmdline_str or 'hexstrike_server' in cmdline_str:
-                    # Don't kill the current process
-                    if proc.info['pid'] != current_pid:
-                        logger.info(f"🔪 Killing existing HexStrike process: PID {proc.info['pid']}")
-                        proc.terminate()
-                        try:
-                            proc.wait(timeout=5)
-                        except psutil.TimeoutExpired:
-                            proc.kill()
-                        killed_pids.append(proc.info['pid'])
+                    logger.info(f"🔪 Killing existing HexStrike process: PID {proc.info['pid']}")
+                    proc.terminate()
+                    try:
+                        proc.wait(timeout=5)
+                    except psutil.TimeoutExpired:
+                        proc.kill()
+                    killed_pids.append(proc.info['pid'])
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 continue
     except Exception as e:
@@ -18058,7 +18059,7 @@ if __name__ == "__main__":
                 logger.info(f"🔄 Auto-switching to available port: {new_port}")
                 API_PORT = new_port
             else:
-                logger.error(f"❌ Could not find an available port after checking ports {API_PORT + 1} to {API_PORT + 51}")
+                logger.error(f"❌ Could not find an available port after checking ports {API_PORT + 1} to {API_PORT + PORT_SEARCH_RANGE + 1}")
                 logger.error("   This may be due to existing HexStrike processes.")
                 logger.error("   Try running with --kill-existing to clean up stale processes:")
                 logger.error(f"      python hexstrike_server.py --kill-existing")
