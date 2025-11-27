@@ -17,11 +17,13 @@ import {
   InputAdornment,
   Paper,
   Button,
+  Snackbar,
+  Alert,
 } from '@mui/material';
 import BuildIcon from '@mui/icons-material/Build';
 import SearchIcon from '@mui/icons-material/Search';
 import FilterListIcon from '@mui/icons-material/FilterList';
-import { ToolCard } from '../components/tools';
+import { ToolCard, ToolDetailDialog } from '../components/tools';
 import type { Tool } from '../types';
 
 // Mock tools data based on FEATURES.md
@@ -265,6 +267,13 @@ const ToolsPage = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [showInstalledOnly, setShowInstalledOnly] = useState(false);
   const [favorites, setFavorites] = useState<Set<string>>(new Set(['1', '6', '11']));
+  const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
+    open: false,
+    message: '',
+    severity: 'info',
+  });
 
   const filteredTools = useMemo(() => {
     return MOCK_TOOLS.filter((tool) => {
@@ -279,8 +288,18 @@ const ToolsPage = () => {
   }, [searchQuery, selectedCategory, showInstalledOnly]);
 
   const handleLaunchTool = (tool: Tool) => {
-    console.log('Launching tool:', tool.name);
-    // TODO: Implement tool launch
+    setSelectedTool(tool);
+    setDetailDialogOpen(true);
+  };
+
+  const handleToolExecute = (tool: Tool, parameters: Record<string, unknown>) => {
+    console.log('Executing tool:', tool.name, 'with parameters:', parameters);
+    setDetailDialogOpen(false);
+    setSnackbar({
+      open: true,
+      message: `${tool.name} execution started with target: ${parameters.target}`,
+      severity: 'success',
+    });
   };
 
   const handleToggleFavorite = (tool: Tool) => {
@@ -408,6 +427,30 @@ const ToolsPage = () => {
           </Button>
         </Box>
       )}
+
+      {/* Tool Detail Dialog */}
+      <ToolDetailDialog
+        open={detailDialogOpen}
+        onClose={() => setDetailDialogOpen(false)}
+        tool={selectedTool}
+        onExecute={handleToolExecute}
+      />
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };
