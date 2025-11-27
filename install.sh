@@ -559,11 +559,13 @@ install_security_tools() {
                 fedora)
                     sudo dnf install -y golang || {
                         log_warning "Failed to install Go via dnf"
+                        log_info "Install Go manually from: https://golang.org/dl/"
                     }
                     ;;
                 macos)
                     brew install go || {
                         log_warning "Failed to install Go via brew"
+                        log_info "Install Go manually from: https://golang.org/dl/"
                     }
                     ;;
                 *)
@@ -604,13 +606,25 @@ install_security_tools() {
         # Install Rust/Cargo if not available
         if ! command -v cargo &> /dev/null; then
             log_info "Rust/Cargo not found. Installing Rust toolchain..."
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y || {
-                log_warning "Failed to install Rust toolchain"
+            # Download rustup installer to temp file for verification before execution
+            local rustup_script="/tmp/rustup-init-$$.sh"
+            if curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o "$rustup_script"; then
+                chmod +x "$rustup_script"
+                "$rustup_script" -y || {
+                    log_warning "Failed to install Rust toolchain"
+                    log_info "Please install Rust manually from: https://rustup.rs/"
+                }
+                rm -f "$rustup_script"
+            else
+                log_warning "Failed to download Rust installer"
                 log_info "Please install Rust manually from: https://rustup.rs/"
-            }
-            # Source cargo environment
+            fi
+            # Source cargo environment and verify it's available
             if [ -f "$HOME/.cargo/env" ]; then
                 source "$HOME/.cargo/env"
+                if ! command -v cargo &> /dev/null; then
+                    log_warning "Cargo still not available after sourcing environment"
+                fi
             fi
         fi
         
