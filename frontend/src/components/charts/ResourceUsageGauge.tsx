@@ -46,10 +46,18 @@ const ResourceUsageGauge = ({
   const roundedMemory = Math.round(memory * 10) / 10;
   const roundedDisk = Math.round(disk * 10) / 10;
 
-  const data: ResourceData[] = [
+  // Data for the radial chart (inner to outer order)
+  const chartData: ResourceData[] = [
     { name: 'Disk', value: roundedDisk, fill: getColor(roundedDisk) },
     { name: 'Memory', value: roundedMemory, fill: getColor(roundedMemory) },
     { name: 'CPU', value: roundedCpu, fill: getColor(roundedCpu) },
+  ];
+
+  // Data for the legend (display order: CPU, Memory, Disk)
+  const legendData: ResourceData[] = [
+    { name: 'CPU', value: roundedCpu, fill: getColor(roundedCpu) },
+    { name: 'Memory', value: roundedMemory, fill: getColor(roundedMemory) },
+    { name: 'Disk', value: roundedDisk, fill: getColor(roundedDisk) },
   ];
 
   // Format the last updated time
@@ -105,7 +113,7 @@ const ResourceUsageGauge = ({
               innerRadius="30%"
               outerRadius="90%"
               barSize={20}
-              data={data}
+              data={chartData}
               startAngle={180}
               endAngle={0}
             >
@@ -125,7 +133,7 @@ const ResourceUsageGauge = ({
           </ResponsiveContainer>
         </Box>
         <Box sx={{ minWidth: 100 }}>
-          {[...data].reverse().map((item, index) => (
+          {legendData.map((item, index) => (
             <Box
               key={index}
               sx={{

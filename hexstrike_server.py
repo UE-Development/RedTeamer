@@ -104,7 +104,7 @@ CORS(app, resources={
         "allow_headers": ["Content-Type", "Authorization"]
     },
     r"/health": {
-        "origins": "*",
+        "origins": ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8889", "http://127.0.0.1:8889"],
         "methods": ["GET"]
     }
 })
