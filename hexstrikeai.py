@@ -85,12 +85,19 @@ def cmd_server(args):
         print()
 
     if args.production:
-        # Check for gunicorn
-        try:
-            import gunicorn  # noqa: F401
+        # Check for gunicorn using shutil.which for proper executable detection
+        import shutil
+        gunicorn_path = shutil.which("gunicorn")
+        if gunicorn_path is None:
+            # Try the venv path
+            venv_gunicorn = script_dir / "hexstrike-env" / "bin" / "gunicorn"
+            if venv_gunicorn.exists():
+                gunicorn_path = str(venv_gunicorn)
+        
+        if gunicorn_path:
             print(f"🚀 Starting HexStrike AI in PRODUCTION mode on {args.host}:{args.port}...")
             cmd = [
-                str(script_dir / "hexstrike-env" / "bin" / "gunicorn"),
+                gunicorn_path,
                 "--bind", f"{args.host}:{args.port}",
                 "--workers", "4",
                 "--timeout", "300",
@@ -99,7 +106,7 @@ def cmd_server(args):
                 "hexstrike_server:app"
             ]
             os.chdir(script_dir)
-        except ImportError:
+        else:
             print("\033[33mgunicorn not installed, using development server\033[0m")
             print(f"🚀 Starting HexStrike AI Server on {args.host}:{args.port}...")
     else:

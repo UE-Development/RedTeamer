@@ -203,7 +203,7 @@ check_system_dependencies() {
     PYTHON_CMD=""
     for cmd in python3 python python3.11 python3.10 python3.9 python3.8; do
         if PYTHON_CMD=$(check_python_version "$cmd"); then
-            log_success "Found compatible Python: $PYTHON_CMD ($(${PYTHON_CMD} --version 2>&1))"
+            log_success "Found compatible Python: $PYTHON_CMD ($(${PYTHON_CMD} --version))"
             break
         fi
     done
@@ -715,11 +715,13 @@ trap cleanup SIGINT SIGTERM
 
 # Health check function
 check_server_health() {
+    local host="${SERVER_HOST:-127.0.0.1}"
+    local port="${SERVER_PORT:-8888}"
     local max_attempts=10
     local attempt=1
     
     while [ $attempt -le $max_attempts ]; do
-        if curl -s -o /dev/null -w "%{http_code}" http://localhost:8888/health | grep -q "200"; then
+        if curl -s -o /dev/null -w "%{http_code}" "http://${host}:${port}/health" | grep -q "200"; then
             return 0
         fi
         sleep 1
@@ -727,6 +729,20 @@ check_server_health() {
     done
     return 1
 }
+
+# Parse arguments for custom host/port
+SERVER_HOST="127.0.0.1"
+SERVER_PORT="8888"
+for arg in "$@"; do
+    case $arg in
+        --host=*)
+            SERVER_HOST="${arg#*=}"
+            ;;
+        --port=*)
+            SERVER_PORT="${arg#*=}"
+            ;;
+    esac
+done
 
 echo -e "${CYAN}"
 echo "╔═══════════════════════════════════════════════════════════════╗"
@@ -750,16 +766,16 @@ if [ -f "$SCRIPT_DIR/start-frontend.sh" ]; then
     fi
 fi
 
-# Start server in background
-echo -e "${CYAN}📡 Starting backend server...${NC}"
-"$SCRIPT_DIR/start-server.sh" &
+# Start server in background (pass along host/port if specified)
+echo -e "${CYAN}📡 Starting backend server on ${SERVER_HOST}:${SERVER_PORT}...${NC}"
+"$SCRIPT_DIR/start-server.sh" --host="$SERVER_HOST" --port="$SERVER_PORT" &
 SERVER_PID=$!
 
 # Health check for server
 echo -n "   Waiting for server to be ready"
 if check_server_health; then
     echo ""
-    echo -e "${GREEN}✅ Backend server running on http://localhost:8888${NC}"
+    echo -e "${GREEN}✅ Backend server running on http://${SERVER_HOST}:${SERVER_PORT}${NC}"
 else
     echo ""
     echo -e "${RED}❌ Backend server failed to start or is not responding${NC}"
@@ -788,7 +804,7 @@ echo ""
 echo -e "${GREEN}═══════════════════════════════════════════════════════════${NC}"
 echo -e "${GREEN}  HexStrike AI is running!${NC}"
 echo ""
-echo -e "  ${CYAN}📡 Backend API:${NC}    http://localhost:8888"
+echo -e "  ${CYAN}📡 Backend API:${NC}    http://${SERVER_HOST}:${SERVER_PORT}"
 if [ "$FRONTEND_AVAILABLE" = true ] && [ -n "$FRONTEND_PID" ]; then
     echo -e "  ${CYAN}🌐 Frontend:${NC}       http://localhost:3000"
 fi
