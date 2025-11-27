@@ -503,7 +503,7 @@ install_security_tools() {
     # Go-based tools
     command -v ffuf &> /dev/null || go_tools+=("github.com/ffuf/ffuf/v2@latest")
     command -v nuclei &> /dev/null || go_tools+=("github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest")
-    command -v amass &> /dev/null || go_tools+=("github.com/owasp-amass/amass/v4/...@master")
+    command -v amass &> /dev/null || go_tools+=("github.com/owasp-amass/amass/v4/...@latest")
     command -v subfinder &> /dev/null || go_tools+=("github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest")
     
     # Rust-based tools
@@ -552,7 +552,9 @@ install_security_tools() {
             export PATH="$PATH:$GOPATH/bin"
             
             for tool in "${go_tools[@]}"; do
-                tool_name=$(basename "${tool%@*}" | sed 's|.*/||')
+                # Extract tool name from the path (e.g., github.com/ffuf/ffuf/v2@latest -> ffuf)
+                tool_path="${tool%@*}"                    # Remove version suffix
+                tool_name=$(echo "$tool_path" | sed 's|.*/||; s|/v[0-9]*$||')  # Get last component, remove version dir
                 log_info "Installing $tool_name..."
                 go install "$tool" || log_warning "Failed to install $tool_name"
             done
@@ -597,7 +599,7 @@ install_security_tools() {
         else
             for tool in "${pip_tools[@]}"; do
                 log_info "Installing $tool with pip..."
-                pip install --user "$tool" || log_warning "Failed to install $tool"
+                pip install --user --index-url https://pypi.org/simple/ "$tool" || log_warning "Failed to install $tool"
             done
         fi
     else
@@ -669,7 +671,11 @@ check_security_tools() {
     
     echo ""
     
-    local total_missing=$((${#missing_tools[@]} + ${#missing_go_tools[@]} + ${#missing_rust_tools[@]} + ${#missing_pip_tools[@]}))
+    local apt_count=${#missing_tools[@]}
+    local go_count=${#missing_go_tools[@]}
+    local rust_count=${#missing_rust_tools[@]}
+    local pip_count=${#missing_pip_tools[@]}
+    local total_missing=$((apt_count + go_count + rust_count + pip_count))
     
     if [ $total_missing -gt 0 ]; then
         if [ "$AUTO_INSTALL_SYSTEM_DEPS" = true ]; then
