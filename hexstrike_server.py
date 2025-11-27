@@ -17970,10 +17970,24 @@ def kill_existing_hexstrike_processes(current_pid: int = None) -> List[int]:
                     continue
                 
                 cmdline = proc.info.get('cmdline') or []
-                cmdline_str = ' '.join(cmdline).lower()
                 
-                # Check if this is a HexStrike server process
-                if 'hexstrike_server.py' in cmdline_str or 'hexstrike_server' in cmdline_str:
+                # Only match Python processes running hexstrike_server.py specifically
+                # This avoids killing unrelated processes that might have 'hexstrike' in their args
+                is_hexstrike_server = False
+                for i, arg in enumerate(cmdline):
+                    arg_lower = arg.lower()
+                    # Check if this argument is hexstrike_server.py (full filename)
+                    if arg_lower.endswith('hexstrike_server.py'):
+                        is_hexstrike_server = True
+                        break
+                    # Also check for gunicorn running hexstrike_server:app
+                    if 'gunicorn' in arg_lower and i + 1 < len(cmdline):
+                        next_arg = cmdline[i + 1].lower()
+                        if 'hexstrike_server:app' in next_arg:
+                            is_hexstrike_server = True
+                            break
+                
+                if is_hexstrike_server:
                     logger.info(f"🔪 Killing existing HexStrike process: PID {proc.info['pid']}")
                     proc.terminate()
                     try:

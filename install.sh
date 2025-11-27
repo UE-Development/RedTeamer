@@ -1074,15 +1074,23 @@ if [ "$PRODUCTION" = true ]; then
         "$PYTHON_CMD" "$SCRIPT_DIR/hexstrike_server.py" --host "$HOST" --port "$PORT" $KILL_EXISTING $NO_AUTO_PORT
     else
         # For gunicorn, we need to manually kill existing processes first
-        # This cleanup script runs in a separate Python subprocess before gunicorn starts,
-        # so os.getpid() refers to this cleanup script, not gunicorn
+        # This cleanup script runs in a separate Python subprocess before gunicorn starts
         if [ -n "$KILL_EXISTING" ]; then
             "$PYTHON_CMD" -c "
 import psutil
 for proc in psutil.process_iter(['pid', 'cmdline']):
     try:
-        cmdline = ' '.join(proc.info.get('cmdline') or []).lower()
-        if 'hexstrike_server' in cmdline:
+        cmdline = proc.info.get('cmdline') or []
+        is_hexstrike = False
+        for i, arg in enumerate(cmdline):
+            if arg.lower().endswith('hexstrike_server.py'):
+                is_hexstrike = True
+                break
+            if 'gunicorn' in arg.lower() and i + 1 < len(cmdline):
+                if 'hexstrike_server:app' in cmdline[i + 1].lower():
+                    is_hexstrike = True
+                    break
+        if is_hexstrike:
             proc.terminate()
             print(f'Killed existing HexStrike process: PID {proc.info[\"pid\"]}')
     except: pass
