@@ -1,6 +1,6 @@
 /**
  * Comprehensive Security Tools Database
- * 150+ security tools organized by category
+ * 162 security tools organized by category
  * This file provides the complete tool list for the Tools page
  */
 

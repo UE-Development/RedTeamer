@@ -87,7 +87,6 @@ const AI_MODELS: AIModel[] = [
   { id: 'anthropic/claude-instant-1.2', name: 'Claude Instant 1.2', category: 'anthropic' },
   
   // OpenAI Models
-  { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini', category: 'openai', description: 'Fast and efficient' },
   { id: 'openai/gpt-4-turbo', name: 'GPT-4 Turbo', category: 'openai' },
   { id: 'openai/gpt-4-turbo-preview', name: 'GPT-4 Turbo Preview', category: 'openai' },
   { id: 'openai/gpt-4', name: 'GPT-4', category: 'openai' },
