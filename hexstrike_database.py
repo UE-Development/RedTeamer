@@ -29,7 +29,11 @@ logger = logging.getLogger(__name__)
 DEFAULT_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hexstrike_data.db")
 
 # Valid table names for stats query (whitelist for security)
-VALID_TABLES = {'users', 'projects', 'scans', 'vulnerabilities', 'settings', 'audit_log'}
+VALID_TABLES = {'users', 'projects', 'scans', 'vulnerabilities', 'settings', 'audit_log', 'schema_version'}
+
+# Current schema version - increment this when making schema changes
+# This allows the database to only reinitialize when there are actual schema changes
+CURRENT_SCHEMA_VERSION = 1
 
 # Vulnerability status constants
 VULN_STATUS_NEW = 'new'
@@ -86,10 +90,76 @@ class HexStrikeDatabase:
         finally:
             conn.close()
     
+    def _get_stored_schema_version(self, conn) -> int:
+        """
+        Get the stored schema version from the database.
+        
+        Returns:
+            The stored schema version, or 0 if not found (new database)
+        """
+        cursor = conn.cursor()
+        try:
+            # Check if schema_version table exists
+            cursor.execute('''
+                SELECT name FROM sqlite_master 
+                WHERE type='table' AND name='schema_version'
+            ''')
+            if not cursor.fetchone():
+                return 0
+            
+            # Use applied_at for ordering to ensure consistent results
+            cursor.execute('SELECT version FROM schema_version ORDER BY applied_at DESC, id DESC LIMIT 1')
+            row = cursor.fetchone()
+            return row['version'] if row else 0
+        except sqlite3.Error:
+            return 0
+    
+    def _update_schema_version(self, cursor, version: int):
+        """Update the stored schema version."""
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS schema_version (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                version INTEGER NOT NULL,
+                applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                description TEXT
+            )
+        ''')
+        cursor.execute('''
+            INSERT INTO schema_version (version, description) 
+            VALUES (?, ?)
+        ''', (version, f'Schema version {version} applied'))
+    
     def _initialize_database(self):
-        """Create the database schema if it doesn't exist."""
+        """
+        Create or update the database schema.
+        
+        This method checks the current schema version and only applies changes
+        when necessary to preserve existing data during updates.
+        """
         with self.get_connection() as conn:
             cursor = conn.cursor()
+            
+            # Check the current schema version
+            stored_version = self._get_stored_schema_version(conn)
+            
+            if stored_version > CURRENT_SCHEMA_VERSION:
+                # Stored version is higher than current - this could happen after a rollback
+                logger.warning(
+                    f"⚠️  Database schema version ({stored_version}) is higher than "
+                    f"expected ({CURRENT_SCHEMA_VERSION}). This may indicate a rollback. "
+                    f"Skipping initialization to preserve data."
+                )
+                return
+            
+            if stored_version == CURRENT_SCHEMA_VERSION:
+                # Database is up to date, no changes needed
+                logger.info(f"✅ Database schema is up to date (version {stored_version})")
+                return
+            
+            if stored_version > 0:
+                logger.info(f"🔄 Upgrading database schema from version {stored_version} to {CURRENT_SCHEMA_VERSION}")
+            else:
+                logger.info("🆕 Creating new database schema")
             
             # Settings table - Key-value store for application settings
             cursor.execute('''
@@ -264,8 +334,11 @@ class HexStrikeDatabase:
             # Insert default settings if not exist
             self._insert_default_settings(cursor)
             
+            # Update schema version
+            self._update_schema_version(cursor, CURRENT_SCHEMA_VERSION)
+            
             conn.commit()
-            logger.info("✅ Database schema initialized successfully")
+            logger.info(f"✅ Database schema initialized successfully (version {CURRENT_SCHEMA_VERSION})")
     
     def _insert_default_settings(self, cursor):
         """Insert default application settings."""
@@ -723,6 +796,16 @@ class HexStrikeDatabase:
     # Database Maintenance
     # =========================================================================
     
+    def get_schema_version(self) -> int:
+        """
+        Get the current schema version of the database.
+        
+        Returns:
+            The current schema version, or 0 if not yet initialized
+        """
+        with self.get_connection() as conn:
+            return self._get_stored_schema_version(conn)
+    
     def get_database_stats(self) -> Dict[str, Any]:
         """Get database statistics."""
         with self.get_connection() as conn:
@@ -731,13 +814,19 @@ class HexStrikeDatabase:
             stats = {
                 'database_path': self.db_path,
                 'database_size_bytes': os.path.getsize(self.db_path) if os.path.exists(self.db_path) else 0,
+                'schema_version': self._get_stored_schema_version(conn),
+                'current_schema_version': CURRENT_SCHEMA_VERSION,
             }
             
             # Use the predefined whitelist of valid table names for security
             for table in VALID_TABLES:
                 # Table name is validated against whitelist, safe to use in query
-                cursor.execute(f'SELECT COUNT(*) as count FROM {table}')
-                stats[f'{table}_count'] = cursor.fetchone()['count']
+                try:
+                    cursor.execute(f'SELECT COUNT(*) as count FROM {table}')
+                    stats[f'{table}_count'] = cursor.fetchone()['count']
+                except sqlite3.OperationalError:
+                    # Table may not exist yet
+                    stats[f'{table}_count'] = 0
             
             return stats
     
