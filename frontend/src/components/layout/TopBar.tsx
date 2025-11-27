@@ -1,5 +1,6 @@
 /**
  * Top Navigation Bar
+ * Mobile-optimized with responsive elements
  */
 
 import { useState } from 'react';
@@ -69,8 +70,11 @@ const TopBar = ({ onMenuClick, drawerWidth, open }: TopBarProps) => {
     <AppBar
       position="fixed"
       sx={{
-        width: { sm: open ? `calc(100% - ${drawerWidth}px)` : '100%' },
-        ml: { sm: open ? `${drawerWidth}px` : 0 },
+        width: { 
+          xs: '100%',
+          md: open ? `calc(100% - ${drawerWidth}px)` : '100%' 
+        },
+        ml: { md: open ? `${drawerWidth}px` : 0 },
         transition: (theme) =>
           theme.transitions.create(['width', 'margin'], {
             easing: theme.transitions.easing.sharp,
@@ -78,13 +82,13 @@ const TopBar = ({ onMenuClick, drawerWidth, open }: TopBarProps) => {
           }),
       }}
     >
-      <Toolbar>
+      <Toolbar sx={{ px: { xs: 1, sm: 2 } }}>
         <IconButton
           color="inherit"
           aria-label="open drawer"
           edge="start"
           onClick={onMenuClick}
-          sx={{ mr: 2 }}
+          sx={{ mr: { xs: 1, sm: 2 } }}
         >
           <MenuIcon />
         </IconButton>
@@ -93,18 +97,25 @@ const TopBar = ({ onMenuClick, drawerWidth, open }: TopBarProps) => {
           variant="h6"
           noWrap
           component="div"
-          sx={{ flexGrow: 0, fontWeight: 700, fontFamily: "'Roboto', sans-serif" }}
+          sx={{ 
+            flexGrow: 0, 
+            fontWeight: 700, 
+            fontFamily: "'Roboto', sans-serif",
+            fontSize: { xs: '1rem', sm: '1.25rem' },
+          }}
         >
           HexStrike AI
         </Typography>
 
+        {/* Hide version on very small screens */}
         <Typography
           variant="body2"
           sx={{
-            ml: 2,
+            ml: { xs: 1, sm: 2 },
             color: 'primary.light',
             fontWeight: 600,
             fontFamily: "'JetBrains Mono', monospace",
+            display: { xs: 'none', sm: 'block' },
           }}
         >
           v6.0
@@ -112,7 +123,7 @@ const TopBar = ({ onMenuClick, drawerWidth, open }: TopBarProps) => {
 
         <Box sx={{ flexGrow: 1 }} />
 
-        <IconButton color="inherit" sx={{ mr: 1 }}>
+        <IconButton color="inherit" sx={{ mr: { xs: 0.5, sm: 1 } }}>
           <Badge badgeContent={unreadCount} color="error">
             <NotificationsIcon />
           </Badge>
@@ -125,7 +136,7 @@ const TopBar = ({ onMenuClick, drawerWidth, open }: TopBarProps) => {
           aria-haspopup="true"
           aria-expanded={menuOpen ? 'true' : undefined}
         >
-          <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.dark' }}>
+          <Avatar sx={{ width: { xs: 28, sm: 32 }, height: { xs: 28, sm: 32 }, bgcolor: 'primary.dark' }}>
             {userInfo.name?.charAt(0) || 'U'}
           </Avatar>
         </IconButton>
@@ -140,7 +151,7 @@ const TopBar = ({ onMenuClick, drawerWidth, open }: TopBarProps) => {
           anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
           PaperProps={{
             sx: {
-              minWidth: 220,
+              minWidth: { xs: 200, sm: 220 },
               mt: 1,
             },
           }}
@@ -149,7 +160,7 @@ const TopBar = ({ onMenuClick, drawerWidth, open }: TopBarProps) => {
             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
               {userInfo.name}
             </Typography>
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" color="text.secondary" sx={{ wordBreak: 'break-all' }}>
               {userInfo.email}
             </Typography>
           </Box>

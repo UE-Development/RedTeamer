@@ -1,5 +1,6 @@
 /**
  * Sidebar Navigation Component
+ * Mobile-optimized with temporary drawer for small screens
  */
 
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -13,6 +14,7 @@ import {
   Divider,
   Box,
   Toolbar,
+  SwipeableDrawer,
 } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
@@ -27,6 +29,8 @@ interface SidebarProps {
   open: boolean;
   drawerWidth: number;
   onClose: () => void;
+  isMobile?: boolean;
+  onNavigate?: () => void;
 }
 
 interface NavItem {
@@ -45,12 +49,16 @@ const navItems: NavItem[] = [
   { text: 'Projects', icon: <FolderIcon />, path: '/projects' },
 ];
 
-const Sidebar = ({ open, drawerWidth }: SidebarProps) => {
+const Sidebar = ({ open, drawerWidth, onClose, isMobile = false, onNavigate }: SidebarProps) => {
   const navigate = useNavigate();
   const location = useLocation();
 
   const handleNavigate = (path: string) => {
     navigate(path);
+    // Call onNavigate to close sidebar on mobile after navigation
+    if (onNavigate) {
+      onNavigate();
+    }
   };
 
   const drawer = (
@@ -74,6 +82,7 @@ const Sidebar = ({ open, drawerWidth }: SidebarProps) => {
               selected={location.pathname === item.path}
               onClick={() => handleNavigate(item.path)}
               sx={{
+                py: { xs: 1.5, sm: 1 },
                 '&.Mui-selected': {
                   bgcolor: 'primary.main',
                   '&:hover': {
@@ -90,6 +99,7 @@ const Sidebar = ({ open, drawerWidth }: SidebarProps) => {
                 primary={item.text}
                 primaryTypographyProps={{
                   fontWeight: location.pathname === item.path ? 600 : 400,
+                  fontSize: { xs: '1rem', sm: '0.875rem' },
                 }}
               />
             </ListItemButton>
@@ -99,16 +109,47 @@ const Sidebar = ({ open, drawerWidth }: SidebarProps) => {
       <Divider sx={{ my: 2 }} />
       <List>
         <ListItem disablePadding>
-          <ListItemButton onClick={() => handleNavigate('/settings')}>
+          <ListItemButton 
+            onClick={() => handleNavigate('/settings')}
+            sx={{ py: { xs: 1.5, sm: 1 } }}
+          >
             <ListItemIcon sx={{ color: 'inherit', minWidth: 40 }}>
               <SettingsIcon />
             </ListItemIcon>
-            <ListItemText primary="Settings" />
+            <ListItemText 
+              primary="Settings" 
+              primaryTypographyProps={{
+                fontSize: { xs: '1rem', sm: '0.875rem' },
+              }}
+            />
           </ListItemButton>
         </ListItem>
       </List>
     </>
   );
+
+  // Use SwipeableDrawer for mobile, persistent Drawer for desktop
+  if (isMobile) {
+    return (
+      <SwipeableDrawer
+        variant="temporary"
+        open={open}
+        onClose={onClose}
+        onOpen={() => {}}
+        ModalProps={{
+          keepMounted: true, // Better open performance on mobile
+        }}
+        sx={{
+          '& .MuiDrawer-paper': {
+            width: drawerWidth,
+            boxSizing: 'border-box',
+          },
+        }}
+      >
+        {drawer}
+      </SwipeableDrawer>
+    );
+  }
 
   return (
     <Drawer
