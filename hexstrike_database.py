@@ -107,7 +107,8 @@ class HexStrikeDatabase:
             if not cursor.fetchone():
                 return 0
             
-            cursor.execute('SELECT version FROM schema_version ORDER BY id DESC LIMIT 1')
+            # Use applied_at for ordering to ensure consistent results
+            cursor.execute('SELECT version FROM schema_version ORDER BY applied_at DESC, id DESC LIMIT 1')
             row = cursor.fetchone()
             return row['version'] if row else 0
         except sqlite3.Error:
@@ -141,7 +142,16 @@ class HexStrikeDatabase:
             # Check the current schema version
             stored_version = self._get_stored_schema_version(conn)
             
-            if stored_version >= CURRENT_SCHEMA_VERSION:
+            if stored_version > CURRENT_SCHEMA_VERSION:
+                # Stored version is higher than current - this could happen after a rollback
+                logger.warning(
+                    f"⚠️  Database schema version ({stored_version}) is higher than "
+                    f"expected ({CURRENT_SCHEMA_VERSION}). This may indicate a rollback. "
+                    f"Skipping initialization to preserve data."
+                )
+                return
+            
+            if stored_version == CURRENT_SCHEMA_VERSION:
                 # Database is up to date, no changes needed
                 logger.info(f"✅ Database schema is up to date (version {stored_version})")
                 return
