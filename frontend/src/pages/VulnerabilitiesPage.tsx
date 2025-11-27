@@ -3,7 +3,7 @@
  * Display and manage discovered security vulnerabilities
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -17,12 +17,22 @@ import {
   Paper,
   Chip,
   Button,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import BugReportIcon from '@mui/icons-material/BugReport';
 import SearchIcon from '@mui/icons-material/Search';
-import { VulnerabilityCard } from '../components/vulnerabilities';
+import CalculateIcon from '@mui/icons-material/Calculate';
+import ShieldIcon from '@mui/icons-material/Shield';
+import ListIcon from '@mui/icons-material/List';
+import { 
+  VulnerabilityCard, 
+  CVSSCalculator, 
+  VulnerabilityDetailDialog,
+  RiskScoringSystem 
+} from '../components/vulnerabilities';
 import { useAppSelector } from '../store';
-import type { Vulnerability } from '../types';
+import type { Vulnerability, VulnerabilityStatus } from '../types';
 
 // Mock vulnerabilities data for demo mode
 const MOCK_VULNERABILITIES: Vulnerability[] = [
@@ -214,12 +224,16 @@ const VulnerabilitiesPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [severityFilter, setSeverityFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [activeTab, setActiveTab] = useState(0);
+  const [selectedVulnerability, setSelectedVulnerability] = useState<Vulnerability | null>(null);
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [vulnerabilities, setVulnerabilities] = useState<Vulnerability[]>(MOCK_VULNERABILITIES);
 
   // Get vulnerabilities based on mock data setting
-  const vulnerabilities = mockDataEnabled ? MOCK_VULNERABILITIES : [];
+  const displayedVulnerabilities = mockDataEnabled ? vulnerabilities : [];
 
   const filteredVulnerabilities = useMemo(() => {
-    return vulnerabilities.filter((vuln) => {
+    return displayedVulnerabilities.filter((vuln) => {
       const matchesSearch =
         vuln.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         vuln.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -230,15 +244,26 @@ const VulnerabilitiesPage = () => {
 
       return matchesSearch && matchesSeverity && matchesStatus;
     });
-  }, [vulnerabilities, searchQuery, severityFilter, statusFilter]);
+  }, [displayedVulnerabilities, searchQuery, severityFilter, statusFilter]);
 
   const vulnerabilityStats = {
-    total: vulnerabilities.length,
-    critical: vulnerabilities.filter((v) => v.severity === 'critical').length,
-    high: vulnerabilities.filter((v) => v.severity === 'high').length,
-    medium: vulnerabilities.filter((v) => v.severity === 'medium').length,
-    low: vulnerabilities.filter((v) => v.severity === 'low').length,
+    total: displayedVulnerabilities.length,
+    critical: displayedVulnerabilities.filter((v) => v.severity === 'critical').length,
+    high: displayedVulnerabilities.filter((v) => v.severity === 'high').length,
+    medium: displayedVulnerabilities.filter((v) => v.severity === 'medium').length,
+    low: displayedVulnerabilities.filter((v) => v.severity === 'low').length,
   };
+
+  const handleViewDetails = useCallback((vuln: Vulnerability) => {
+    setSelectedVulnerability(vuln);
+    setDetailDialogOpen(true);
+  }, []);
+
+  const handleStatusChange = useCallback((id: string, status: VulnerabilityStatus) => {
+    setVulnerabilities((prev) => 
+      prev.map((v) => v.id === id ? { ...v, status } : v)
+    );
+  }, []);
 
   return (
     <Box>
@@ -246,7 +271,7 @@ const VulnerabilitiesPage = () => {
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4" sx={{ fontWeight: 700 }}>
           <BugReportIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-          Discovered Vulnerabilities ({vulnerabilityStats.total})
+          Vulnerability Management
         </Typography>
         <Box sx={{ display: 'flex', gap: 1 }}>
           <Chip
@@ -264,84 +289,127 @@ const VulnerabilitiesPage = () => {
         </Box>
       </Box>
 
-      {/* Filters */}
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <Grid container spacing={2} alignItems="center">
-          <Grid size={{ xs: 12, md: 6 }}>
-            <TextField
-              fullWidth
-              placeholder="Search vulnerabilities..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon />
-                  </InputAdornment>
-                ),
-              }}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, md: 3 }}>
-            <FormControl fullWidth>
-              <InputLabel>Severity</InputLabel>
-              <Select
-                value={severityFilter}
-                label="Severity"
-                onChange={(e) => setSeverityFilter(e.target.value)}
-              >
-                <MenuItem value="all">All Severities</MenuItem>
-                <MenuItem value="critical">🔴 Critical</MenuItem>
-                <MenuItem value="high">🟠 High</MenuItem>
-                <MenuItem value="medium">🟡 Medium</MenuItem>
-                <MenuItem value="low">🔵 Low</MenuItem>
-                <MenuItem value="info">ℹ️ Info</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid size={{ xs: 12, md: 3 }}>
-            <FormControl fullWidth>
-              <InputLabel>Status</InputLabel>
-              <Select
-                value={statusFilter}
-                label="Status"
-                onChange={(e) => setStatusFilter(e.target.value)}
-              >
-                <MenuItem value="all">All Statuses</MenuItem>
-                <MenuItem value="new">New</MenuItem>
-                <MenuItem value="confirmed">Confirmed</MenuItem>
-                <MenuItem value="false_positive">False Positive</MenuItem>
-                <MenuItem value="remediated">Remediated</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-        </Grid>
+      {/* Tabs */}
+      <Paper sx={{ mb: 3 }}>
+        <Tabs
+          value={activeTab}
+          onChange={(_, newValue) => setActiveTab(newValue)}
+          sx={{ borderBottom: 1, borderColor: 'divider' }}
+        >
+          <Tab icon={<ListIcon />} label="Vulnerabilities" iconPosition="start" />
+          <Tab icon={<ShieldIcon />} label="Risk Assessment" iconPosition="start" />
+          <Tab icon={<CalculateIcon />} label="CVSS Calculator" iconPosition="start" />
+        </Tabs>
       </Paper>
 
-      {/* Vulnerabilities List */}
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-        {filteredVulnerabilities.map((vuln) => (
-          <VulnerabilityCard key={vuln.id} vulnerability={vuln} />
-        ))}
-      </Box>
+      {/* Vulnerabilities List Tab */}
+      {activeTab === 0 && (
+        <>
+          {/* Filters */}
+          <Paper sx={{ p: 2, mb: 3 }}>
+            <Grid container spacing={2} alignItems="center">
+              <Grid size={{ xs: 12, md: 6 }}>
+                <TextField
+                  fullWidth
+                  placeholder="Search vulnerabilities..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+              <Grid size={{ xs: 12, md: 3 }}>
+                <FormControl fullWidth>
+                  <InputLabel>Severity</InputLabel>
+                  <Select
+                    value={severityFilter}
+                    label="Severity"
+                    onChange={(e) => setSeverityFilter(e.target.value)}
+                  >
+                    <MenuItem value="all">All Severities</MenuItem>
+                    <MenuItem value="critical">🔴 Critical</MenuItem>
+                    <MenuItem value="high">🟠 High</MenuItem>
+                    <MenuItem value="medium">🟡 Medium</MenuItem>
+                    <MenuItem value="low">🔵 Low</MenuItem>
+                    <MenuItem value="info">ℹ️ Info</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid size={{ xs: 12, md: 3 }}>
+                <FormControl fullWidth>
+                  <InputLabel>Status</InputLabel>
+                  <Select
+                    value={statusFilter}
+                    label="Status"
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                  >
+                    <MenuItem value="all">All Statuses</MenuItem>
+                    <MenuItem value="new">New</MenuItem>
+                    <MenuItem value="confirmed">Confirmed</MenuItem>
+                    <MenuItem value="false_positive">False Positive</MenuItem>
+                    <MenuItem value="remediated">Remediated</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+            </Grid>
+          </Paper>
 
-      {filteredVulnerabilities.length === 0 && (
-        <Box sx={{ textAlign: 'center', py: 8 }}>
-          <Typography variant="h6" color="text.secondary">
-            No vulnerabilities found matching your criteria
-          </Typography>
-          <Button
-            sx={{ mt: 2 }}
-            onClick={() => {
-              setSearchQuery('');
-              setSeverityFilter('all');
-              setStatusFilter('all');
-            }}
-          >
-            Clear Filters
-          </Button>
-        </Box>
+          {/* Vulnerabilities List */}
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {filteredVulnerabilities.map((vuln) => (
+              <VulnerabilityCard 
+                key={vuln.id} 
+                vulnerability={vuln} 
+                onViewDetails={handleViewDetails}
+              />
+            ))}
+          </Box>
+
+          {filteredVulnerabilities.length === 0 && (
+            <Box sx={{ textAlign: 'center', py: 8 }}>
+              <Typography variant="h6" color="text.secondary">
+                No vulnerabilities found matching your criteria
+              </Typography>
+              <Button
+                sx={{ mt: 2 }}
+                onClick={() => {
+                  setSearchQuery('');
+                  setSeverityFilter('all');
+                  setStatusFilter('all');
+                }}
+              >
+                Clear Filters
+              </Button>
+            </Box>
+          )}
+        </>
       )}
+
+      {/* Risk Assessment Tab */}
+      {activeTab === 1 && (
+        <RiskScoringSystem 
+          vulnerabilities={displayedVulnerabilities}
+          projectName="Current Security Assessment"
+        />
+      )}
+
+      {/* CVSS Calculator Tab */}
+      {activeTab === 2 && (
+        <CVSSCalculator />
+      )}
+
+      {/* Vulnerability Detail Dialog */}
+      <VulnerabilityDetailDialog
+        open={detailDialogOpen}
+        onClose={() => setDetailDialogOpen(false)}
+        vulnerability={selectedVulnerability}
+        onStatusChange={handleStatusChange}
+      />
     </Box>
   );
 };

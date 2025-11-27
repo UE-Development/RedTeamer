@@ -11,6 +11,7 @@ import HistoryIcon from '@mui/icons-material/History';
 import SpeedIcon from '@mui/icons-material/Speed';
 import GroupIcon from '@mui/icons-material/Group';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
+import ExploreIcon from '@mui/icons-material/Explore';
 import { useAppSelector, useAppDispatch } from '../store';
 import {
   setAgents,
@@ -27,6 +28,7 @@ import {
   AgentPerformanceMetrics,
   MultiAgentChat,
   AgentCollaborationView,
+  AgentCapabilityExplorer,
 } from '../components/agents';
 import type { CollaborationTask, CollaborationWorkflow } from '../components/agents';
 import type { Agent, AgentMessage } from '../types';
@@ -36,8 +38,9 @@ const TABS = {
   CHAT: 0,
   MULTI_AGENT: 1,
   COLLABORATION: 2,
-  HISTORY: 3,
-  METRICS: 4,
+  CAPABILITIES: 3,
+  HISTORY: 4,
+  METRICS: 5,
 } as const;
 
 // Mock agents data for demo mode
@@ -457,6 +460,17 @@ const AgentsPage = () => {
     return () => clearInterval(interval);
   }, [workflow?.status]);
 
+  // Handle command execution from capability explorer
+  const handleExecuteCommand = useCallback(
+    (command: string) => {
+      if (selectedAgent) {
+        handleSendMessage(command);
+        setActiveTab(TABS.CHAT);
+      }
+    },
+    [selectedAgent, handleSendMessage]
+  );
+
   const renderTabContent = () => {
     switch (activeTab) {
       case TABS.CHAT:
@@ -487,6 +501,13 @@ const AgentsPage = () => {
             onPauseWorkflow={handlePauseWorkflow}
             onStopWorkflow={handleStopWorkflow}
             onRestartTask={handleRestartTask}
+          />
+        );
+      case TABS.CAPABILITIES:
+        return (
+          <AgentCapabilityExplorer
+            agent={selectedAgent}
+            onExecuteCommand={handleExecuteCommand}
           />
         );
       case TABS.HISTORY:
@@ -542,6 +563,12 @@ const AgentsPage = () => {
               <Tab
                 icon={<AccountTreeIcon />}
                 label="Collaboration"
+                iconPosition="start"
+                sx={{ minHeight: 48 }}
+              />
+              <Tab
+                icon={<ExploreIcon />}
+                label="Capabilities"
                 iconPosition="start"
                 sx={{ minHeight: 48 }}
               />

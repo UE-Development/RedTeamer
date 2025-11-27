@@ -13,4 +13,5 @@ export { default as AgentPerformanceMetrics } from './AgentPerformanceMetrics';
 export { default as MultiAgentChat } from './MultiAgentChat';
 export { default as AgentCollaborationView } from './AgentCollaborationView';
 export { default as AgentConfigurationPanel } from './AgentConfigurationPanel';
+export { default as AgentCapabilityExplorer } from './AgentCapabilityExplorer';
 export type { CollaborationTask, CollaborationWorkflow } from './AgentCollaborationView';
