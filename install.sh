@@ -75,7 +75,7 @@ print_usage() {
     echo "Usage: $0 [OPTIONS]"
     echo ""
     echo "Options:"
-    echo "  --auto-install-system-deps  Attempt to install missing system dependencies"
+    echo "  --auto-install-system-deps  Attempt to install missing system dependencies and security tools"
     echo "  --with-offensive-tools      Install offensive tooling (pwntools, angr)"
     echo "  --production                Setup for production (gunicorn, systemd service)"
     echo "  --recreate-venv             Force recreation of the virtual environment"
@@ -86,6 +86,7 @@ print_usage() {
     echo ""
     echo "Examples:"
     echo "  $0                                  # Standard development installation"
+    echo "  $0 --auto-install-system-deps       # Install all security tools (nmap, masscan, etc.)"
     echo "  $0 --with-offensive-tools           # Include binary exploitation tools"
     echo "  $0 --production --generate-systemd  # Production setup with systemd"
     echo ""
@@ -467,6 +468,148 @@ install_frontend_dependencies() {
 }
 
 # ============================================================================
+# SECURITY TOOLS INSTALLATION
+# ============================================================================
+
+install_security_tools() {
+    log_step "Installing Security Tools"
+    
+    local apt_tools=()
+    local go_tools=()
+    local rust_tools=()
+    local pip_tools=()
+    
+    # Check which tools need to be installed and categorize them
+    log_info "Checking which security tools need to be installed..."
+    
+    # Essential Network Tools (apt)
+    command -v nmap &> /dev/null || apt_tools+=("nmap")
+    command -v masscan &> /dev/null || apt_tools+=("masscan")
+    
+    # Web Application Tools (apt)
+    command -v gobuster &> /dev/null || apt_tools+=("gobuster")
+    command -v nikto &> /dev/null || apt_tools+=("nikto")
+    command -v sqlmap &> /dev/null || apt_tools+=("sqlmap")
+    
+    # Password & Authentication Tools (apt)
+    command -v hydra &> /dev/null || apt_tools+=("hydra")
+    command -v john &> /dev/null || apt_tools+=("john")
+    command -v hashcat &> /dev/null || apt_tools+=("hashcat")
+    
+    # SMB & Network Enumeration (apt)
+    command -v enum4linux &> /dev/null || apt_tools+=("enum4linux")
+    command -v smbmap &> /dev/null || apt_tools+=("smbmap")
+    
+    # Go-based tools
+    command -v ffuf &> /dev/null || go_tools+=("github.com/ffuf/ffuf/v2@latest")
+    command -v nuclei &> /dev/null || go_tools+=("github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest")
+    command -v amass &> /dev/null || go_tools+=("github.com/owasp-amass/amass/v4/...@latest")
+    command -v subfinder &> /dev/null || go_tools+=("github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest")
+    
+    # Rust-based tools
+    command -v rustscan &> /dev/null || rust_tools+=("rustscan")
+    command -v feroxbuster &> /dev/null || rust_tools+=("feroxbuster")
+    
+    # Pip-based tools
+    command -v netexec &> /dev/null || pip_tools+=("netexec")
+    
+    # Install apt-based tools
+    if [ ${#apt_tools[@]} -gt 0 ]; then
+        log_info "Installing apt-based security tools: ${apt_tools[*]}"
+        case "$DETECTED_DISTRO" in
+            ubuntu|debian|kali)
+                sudo apt update
+                sudo apt install -y "${apt_tools[@]}" || {
+                    log_warning "Some apt packages failed to install. They may not be available in your repositories."
+                }
+                ;;
+            fedora)
+                sudo dnf install -y "${apt_tools[@]}" || {
+                    log_warning "Some dnf packages failed to install. They may not be available in your repositories."
+                }
+                ;;
+            macos)
+                brew install "${apt_tools[@]}" || {
+                    log_warning "Some brew packages failed to install."
+                }
+                ;;
+            *)
+                log_warning "Cannot auto-install apt-based tools on this OS: $DETECTED_DISTRO"
+                log_info "Please install manually: ${apt_tools[*]}"
+                ;;
+        esac
+    else
+        log_info "All apt-based security tools are already installed"
+    fi
+    
+    # Install Go-based tools
+    if [ ${#go_tools[@]} -gt 0 ]; then
+        if command -v go &> /dev/null; then
+            log_info "Installing Go-based security tools..."
+            
+            # Set GOPATH if not set
+            export GOPATH="${GOPATH:-$HOME/go}"
+            export PATH="$PATH:$GOPATH/bin"
+            
+            for tool in "${go_tools[@]}"; do
+                # Extract tool name from the path (e.g., github.com/ffuf/ffuf/v2@latest -> ffuf)
+                tool_path="${tool%@*}"                    # Remove version suffix
+                tool_name=$(echo "$tool_path" | sed 's|.*/||; s|/v[0-9]*$||')  # Get last component, remove version dir
+                log_info "Installing $tool_name..."
+                go install "$tool" || log_warning "Failed to install $tool_name"
+            done
+            
+            log_info "Go tools installed to $GOPATH/bin"
+            log_info "Add to your PATH: export PATH=\$PATH:$GOPATH/bin"
+        else
+            log_warning "Go is not installed. Skipping Go-based tools: ffuf, nuclei, amass, subfinder"
+            log_info "Install Go from: https://golang.org/dl/"
+            log_info "Then run: go install <tool>@latest"
+        fi
+    else
+        log_info "All Go-based security tools are already installed"
+    fi
+    
+    # Install Rust-based tools
+    if [ ${#rust_tools[@]} -gt 0 ]; then
+        if command -v cargo &> /dev/null; then
+            log_info "Installing Rust-based security tools..."
+            for tool in "${rust_tools[@]}"; do
+                log_info "Installing $tool..."
+                cargo install "$tool" || log_warning "Failed to install $tool"
+            done
+        else
+            log_warning "Cargo (Rust) is not installed. Skipping Rust-based tools: rustscan, feroxbuster"
+            log_info "Install Rust from: https://rustup.rs/"
+            log_info "Then run: cargo install rustscan"
+        fi
+    else
+        log_info "All Rust-based security tools are already installed"
+    fi
+    
+    # Install pip-based tools
+    if [ ${#pip_tools[@]} -gt 0 ]; then
+        log_info "Installing pip-based security tools: ${pip_tools[*]}"
+        # Use pipx if available, otherwise fall back to pip with --user
+        if command -v pipx &> /dev/null; then
+            for tool in "${pip_tools[@]}"; do
+                log_info "Installing $tool with pipx..."
+                pipx install "$tool" || log_warning "Failed to install $tool"
+            done
+        else
+            for tool in "${pip_tools[@]}"; do
+                log_info "Installing $tool with pip..."
+                pip install --user --index-url https://pypi.org/simple/ "$tool" || log_warning "Failed to install $tool"
+            done
+        fi
+    else
+        log_info "All pip-based security tools are already installed"
+    fi
+    
+    log_success "Security tools installation completed"
+}
+
+# ============================================================================
 # SECURITY TOOLS CHECK
 # ============================================================================
 
@@ -484,27 +627,29 @@ check_security_tools() {
         return
     fi
     
-    log_step "Security Tools Availability (Informational)"
+    log_step "Security Tools Availability"
     
     log_info "Checking for installed security tools..."
-    log_info "Note: These tools are optional and can be installed separately."
     echo ""
     
     local missing_tools=()
+    local missing_go_tools=()
+    local missing_rust_tools=()
+    local missing_pip_tools=()
     
     # Essential tools
     echo -e "${BOLD}Essential Network Tools:${NC}"
     check_command nmap || missing_tools+=("nmap")
     check_command masscan || missing_tools+=("masscan")
-    check_command rustscan || true  # Not in apt, skip for auto-install
+    check_command rustscan || missing_rust_tools+=("rustscan")
     
     echo ""
     echo -e "${BOLD}Web Application Tools:${NC}"
     check_command gobuster || missing_tools+=("gobuster")
-    check_command feroxbuster || true  # Not in apt
-    check_command ffuf || true  # Not in apt
+    check_command feroxbuster || missing_rust_tools+=("feroxbuster")
+    check_command ffuf || missing_go_tools+=("ffuf")
     check_command nikto || missing_tools+=("nikto")
-    check_command nuclei || true  # Not in apt
+    check_command nuclei || missing_go_tools+=("nuclei")
     check_command sqlmap || missing_tools+=("sqlmap")
     
     echo ""
@@ -515,29 +660,84 @@ check_security_tools() {
     
     echo ""
     echo -e "${BOLD}Subdomain & OSINT Tools:${NC}"
-    check_command amass || true  # Not in apt
-    check_command subfinder || true  # Not in apt
+    check_command amass || missing_go_tools+=("amass")
+    check_command subfinder || missing_go_tools+=("subfinder")
     
     echo ""
     echo -e "${BOLD}SMB & Network Enumeration:${NC}"
     check_command enum4linux || missing_tools+=("enum4linux")
     check_command smbmap || missing_tools+=("smbmap")
-    check_command netexec || true  # Not in apt
+    check_command netexec || missing_pip_tools+=("netexec")
     
     echo ""
     
-    if [ ${#missing_tools[@]} -gt 0 ]; then
-        log_info "Some tools are not installed. To install available tools:"
-        case "$DETECTED_DISTRO" in
-            ubuntu|debian)
-                echo -e "  ${YELLOW}sudo apt install ${missing_tools[*]}${NC}"
-                ;;
-            *)
-                echo -e "  ${YELLOW}Install: ${missing_tools[*]}${NC}"
-                ;;
-        esac
+    local apt_count=${#missing_tools[@]}
+    local go_count=${#missing_go_tools[@]}
+    local rust_count=${#missing_rust_tools[@]}
+    local pip_count=${#missing_pip_tools[@]}
+    local total_missing=$((apt_count + go_count + rust_count + pip_count))
+    
+    if [ $total_missing -gt 0 ]; then
+        if [ "$AUTO_INSTALL_SYSTEM_DEPS" = true ]; then
+            log_info "Auto-installing security tools..."
+            install_security_tools
+            
+            # Re-check after installation
+            log_info "Verifying installed tools..."
+            echo ""
+            echo -e "${BOLD}Essential Network Tools:${NC}"
+            check_command nmap
+            check_command masscan
+            check_command rustscan
+            echo ""
+            echo -e "${BOLD}Web Application Tools:${NC}"
+            check_command gobuster
+            check_command feroxbuster
+            check_command ffuf
+            check_command nikto
+            check_command nuclei
+            check_command sqlmap
+            echo ""
+            echo -e "${BOLD}Password & Authentication Tools:${NC}"
+            check_command hydra
+            check_command john
+            check_command hashcat
+            echo ""
+            echo -e "${BOLD}Subdomain & OSINT Tools:${NC}"
+            check_command amass
+            check_command subfinder
+            echo ""
+            echo -e "${BOLD}SMB & Network Enumeration:${NC}"
+            check_command enum4linux
+            check_command smbmap
+            check_command netexec
+        else
+            log_info "Some tools are not installed. To install them automatically:"
+            echo -e "  ${YELLOW}$0 --auto-install-system-deps${NC}"
+            echo ""
+            log_info "Or install manually:"
+            if [ ${#missing_tools[@]} -gt 0 ]; then
+                case "$DETECTED_DISTRO" in
+                    ubuntu|debian)
+                        echo -e "  ${YELLOW}sudo apt install ${missing_tools[*]}${NC}"
+                        ;;
+                    *)
+                        echo -e "  ${YELLOW}Install via package manager: ${missing_tools[*]}${NC}"
+                        ;;
+                esac
+            fi
+            if [ ${#missing_go_tools[@]} -gt 0 ]; then
+                echo -e "  ${YELLOW}Go tools (requires Go): ${missing_go_tools[*]}${NC}"
+            fi
+            if [ ${#missing_rust_tools[@]} -gt 0 ]; then
+                echo -e "  ${YELLOW}Rust tools (requires Cargo): ${missing_rust_tools[*]}${NC}"
+            fi
+            if [ ${#missing_pip_tools[@]} -gt 0 ]; then
+                echo -e "  ${YELLOW}Python tools (pip install): ${missing_pip_tools[*]}${NC}"
+            fi
+        fi
     else
-        log_success "All common security tools are installed"
+        log_success "All security tools are installed"
     fi
     
     echo ""
