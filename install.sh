@@ -1479,15 +1479,104 @@ generate_systemd_service() {
         return
     fi
     
-    log_step "Generating systemd Service File"
+    log_step "Generating systemd Service Files"
     
-    local service_file="$SCRIPT_DIR/hexstrike-ai.service"
     local user=$(whoami)
     
-    cat > "$service_file" << EOFSYSTEMD
+    # Backend Service
+    local backend_service="$SCRIPT_DIR/hexstrike-ai-backend.service"
+    cat > "$backend_service" << EOFSYSTEMD_BACKEND
 [Unit]
-Description=HexStrike AI - Cybersecurity Automation Platform
+Description=HexStrike AI Backend Server - Cybersecurity Automation Platform
 After=network.target
+Documentation=https://github.com/UE-Development/RedTeamer
+
+[Service]
+Type=simple
+User=$user
+WorkingDirectory=$SCRIPT_DIR
+Environment=PATH=$VENV_DIR/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=$VENV_DIR/bin/python $SCRIPT_DIR/hexstrike_server.py --host 127.0.0.1 --port 8889
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+EOFSYSTEMD_BACKEND
+    log_success "Created hexstrike-ai-backend.service"
+    
+    # Frontend Service (only if frontend directory exists)
+    if [ -d "$FRONTEND_DIR" ]; then
+        local frontend_service="$SCRIPT_DIR/hexstrike-ai-frontend.service"
+        cat > "$frontend_service" << EOFSYSTEMD_FRONTEND
+[Unit]
+Description=HexStrike AI Frontend - Web Interface
+After=network.target hexstrike-ai-backend.service
+Wants=hexstrike-ai-backend.service
+Documentation=https://github.com/UE-Development/RedTeamer
+
+[Service]
+Type=simple
+User=$user
+WorkingDirectory=$FRONTEND_DIR
+ExecStart=/usr/bin/npm run dev
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+EOFSYSTEMD_FRONTEND
+        log_success "Created hexstrike-ai-frontend.service"
+    fi
+    
+    # MCP Service
+    local mcp_service="$SCRIPT_DIR/hexstrike-ai-mcp.service"
+    cat > "$mcp_service" << EOFSYSTEMD_MCP
+[Unit]
+Description=HexStrike AI MCP Server - AI Agent Communication Interface
+After=network.target hexstrike-ai-backend.service
+Wants=hexstrike-ai-backend.service
+Documentation=https://github.com/UE-Development/RedTeamer
+
+[Service]
+Type=simple
+User=$user
+WorkingDirectory=$SCRIPT_DIR
+Environment=PATH=$VENV_DIR/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=$VENV_DIR/bin/python $SCRIPT_DIR/hexstrike_mcp.py --server http://127.0.0.1:8889
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+EOFSYSTEMD_MCP
+    log_success "Created hexstrike-ai-mcp.service"
+    
+    # Also create the legacy single service file for backward compatibility
+    local legacy_service="$SCRIPT_DIR/hexstrike-ai.service"
+    cat > "$legacy_service" << EOFSYSTEMD_LEGACY
+[Unit]
+Description=HexStrike AI - Cybersecurity Automation Platform (All-in-One)
+After=network.target
+Documentation=https://github.com/UE-Development/RedTeamer
 
 [Service]
 Type=simple
@@ -1500,18 +1589,50 @@ RestartSec=5
 StandardOutput=journal
 StandardError=journal
 
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
 [Install]
 WantedBy=multi-user.target
-EOFSYSTEMD
+EOFSYSTEMD_LEGACY
+    log_success "Created hexstrike-ai.service (legacy all-in-one)"
     
-    log_success "Created hexstrike-ai.service"
     echo ""
-    log_info "To install the systemd service, run:"
-    echo -e "  ${YELLOW}sudo cp $service_file /etc/systemd/system/${NC}"
+    log_info "To install the systemd services, run:"
+    echo ""
+    echo -e "  ${CYAN}# Install all service files${NC}"
+    echo -e "  ${YELLOW}sudo cp $SCRIPT_DIR/hexstrike-ai-backend.service /etc/systemd/system/${NC}"
+    if [ -d "$FRONTEND_DIR" ]; then
+        echo -e "  ${YELLOW}sudo cp $SCRIPT_DIR/hexstrike-ai-frontend.service /etc/systemd/system/${NC}"
+    fi
+    echo -e "  ${YELLOW}sudo cp $SCRIPT_DIR/hexstrike-ai-mcp.service /etc/systemd/system/${NC}"
+    echo ""
+    echo -e "  ${CYAN}# Reload systemd and enable services${NC}"
     echo -e "  ${YELLOW}sudo systemctl daemon-reload${NC}"
-    echo -e "  ${YELLOW}sudo systemctl enable hexstrike-ai${NC}"
-    echo -e "  ${YELLOW}sudo systemctl start hexstrike-ai${NC}"
+    echo -e "  ${YELLOW}sudo systemctl enable hexstrike-ai-backend hexstrike-ai-mcp${NC}"
+    if [ -d "$FRONTEND_DIR" ]; then
+        echo -e "  ${YELLOW}sudo systemctl enable hexstrike-ai-frontend${NC}"
+    fi
+    echo ""
+    echo -e "  ${CYAN}# Start services${NC}"
+    echo -e "  ${YELLOW}sudo systemctl start hexstrike-ai-backend${NC}"
+    if [ -d "$FRONTEND_DIR" ]; then
+        echo -e "  ${YELLOW}sudo systemctl start hexstrike-ai-frontend${NC}"
+    fi
+    echo -e "  ${YELLOW}sudo systemctl start hexstrike-ai-mcp${NC}"
+    echo ""
+    echo -e "  ${CYAN}# Check status${NC}"
+    echo -e "  ${YELLOW}sudo systemctl status hexstrike-ai-backend${NC}"
+    if [ -d "$FRONTEND_DIR" ]; then
+        echo -e "  ${YELLOW}sudo systemctl status hexstrike-ai-frontend${NC}"
+    fi
+    echo -e "  ${YELLOW}sudo systemctl status hexstrike-ai-mcp${NC}"
+    echo ""
+    echo -e "  ${CYAN}# View logs${NC}"
+    echo -e "  ${YELLOW}sudo journalctl -u hexstrike-ai-backend -f${NC}"
 }
+
 
 # ============================================================================
 # PRINT SUMMARY
