@@ -633,11 +633,11 @@ const SettingsPage = () => {
                                 <StarIcon sx={{ fontSize: 16, color: 'warning.main' }} />
                               )}
                             </Box>
-                            {(option.priceIn !== undefined || option.priceOut !== undefined) && (
+                            {(option.priceIn !== undefined && option.priceOut !== undefined) && (
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                 <AttachMoneyIcon sx={{ fontSize: 14, color: 'success.main' }} />
                                 <Typography variant="caption" sx={{ color: 'success.main', fontFamily: 'monospace', fontWeight: 600 }}>
-                                  ${option.priceIn?.toFixed(2) ?? '?'} / ${option.priceOut?.toFixed(2) ?? '?'}
+                                  ${option.priceIn.toFixed(2)} / ${option.priceOut.toFixed(2)}
                                 </Typography>
                               </Box>
                             )}
@@ -651,7 +651,7 @@ const SettingsPage = () => {
                             <Typography variant="caption" color="text.disabled" sx={{ fontFamily: 'monospace' }}>
                               {option.id}
                             </Typography>
-                            {(option.priceIn !== undefined || option.priceOut !== undefined) && (
+                            {(option.priceIn !== undefined && option.priceOut !== undefined) && (
                               <Typography variant="caption" color="text.disabled" sx={{ fontFamily: 'monospace', fontSize: '0.65rem' }}>
                                 per 1M tokens (in/out)
                               </Typography>
