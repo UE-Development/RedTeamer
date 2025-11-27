@@ -13,6 +13,7 @@ import SpeedIcon from '@mui/icons-material/Speed';
 import GroupIcon from '@mui/icons-material/Group';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import ExploreIcon from '@mui/icons-material/Explore';
+import ScheduleIcon from '@mui/icons-material/Schedule';
 import InfoIcon from '@mui/icons-material/Info';
 import { useAppSelector, useAppDispatch } from '../store';
 import {
@@ -31,6 +32,7 @@ import {
   MultiAgentChat,
   AgentCollaborationView,
   AgentCapabilityExplorer,
+  AgentScheduler,
 } from '../components/agents';
 import type { CollaborationTask, CollaborationWorkflow } from '../components/agents';
 import type { Agent, AgentMessage } from '../types';
@@ -67,9 +69,10 @@ const TABS = {
   CHAT: 0,
   MULTI_AGENT: 1,
   COLLABORATION: 2,
-  CAPABILITIES: 3,
-  HISTORY: 4,
-  METRICS: 5,
+  SCHEDULER: 3,
+  CAPABILITIES: 4,
+  HISTORY: 5,
+  METRICS: 6,
 } as const;
 
 // Mock agents data for demo mode
@@ -630,6 +633,8 @@ const AgentsPage = () => {
             onRestartTask={handleRestartTask}
           />
         );
+      case TABS.SCHEDULER:
+        return <AgentScheduler agents={agents} />;
       case TABS.CAPABILITIES:
         return (
           <AgentCapabilityExplorer
@@ -701,6 +706,12 @@ const AgentsPage = () => {
               <Tab
                 icon={<AccountTreeIcon />}
                 label="Collaboration"
+                iconPosition="start"
+                sx={{ minHeight: 48 }}
+              />
+              <Tab
+                icon={<ScheduleIcon />}
+                label="Scheduler"
                 iconPosition="start"
                 sx={{ minHeight: 48 }}
               />
