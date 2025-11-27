@@ -510,9 +510,13 @@ install_security_tools() {
     command -v rustscan &> /dev/null || rust_tools+=("rustscan")
     command -v feroxbuster &> /dev/null || rust_tools+=("feroxbuster")
     
-    # Pip-based tools
-    command -v netexec &> /dev/null || pip_tools+=("netexec")
-    command -v enum4linux-ng &> /dev/null || pip_tools+=("enum4linux-ng")
+    # Git-based tools (installed via pip from GitHub)
+    local git_tools=()
+    command -v enum4linux-ng &> /dev/null || git_tools+=("enum4linux-ng:https://github.com/cddmp/enum4linux-ng.git")
+    
+    # Pip-based tools (available from PyPI via pipx)
+    local pipx_tools=()
+    command -v netexec &> /dev/null || pipx_tools+=("netexec")
     
     # Install apt-based tools
     if [ ${#apt_tools[@]} -gt 0 ]; then
@@ -643,24 +647,78 @@ install_security_tools() {
         log_info "All Rust-based security tools are already installed"
     fi
     
-    # Install pip-based tools
-    if [ ${#pip_tools[@]} -gt 0 ]; then
-        log_info "Installing pip-based security tools: ${pip_tools[*]}"
+    # Install git-based tools (from GitHub repositories)
+    if [ ${#git_tools[@]} -gt 0 ]; then
+        log_info "Installing git-based security tools..."
+        for tool_entry in "${git_tools[@]}"; do
+            # Parse tool name and URL from format "name:url"
+            tool_name="${tool_entry%%:*}"
+            git_url="${tool_entry#*:}"
+            
+            log_info "Installing $tool_name from GitHub..."
+            
+            # Create a temporary directory for cloning
+            local temp_dir="/tmp/${tool_name}-install-$$"
+            
+            if git clone "$git_url" "$temp_dir" 2>/dev/null; then
+                # Check if the repository has a setup.py or pyproject.toml
+                if [ -f "$temp_dir/setup.py" ] || [ -f "$temp_dir/pyproject.toml" ]; then
+                    pip install "$temp_dir" && log_success "Installed $tool_name" || log_warning "Failed to install $tool_name"
+                elif [ -f "$temp_dir/requirements.txt" ]; then
+                    # Install requirements and copy the main script
+                    if pip install -r "$temp_dir/requirements.txt"; then
+                        # Look for executable script: try common patterns
+                        local script_found=false
+                        for script_pattern in "${tool_name}.py" "${tool_name}" "bin/${tool_name}" "bin/${tool_name}.py"; do
+                            if [ -f "$temp_dir/$script_pattern" ]; then
+                                chmod +x "$temp_dir/$script_pattern"
+                                sudo cp "$temp_dir/$script_pattern" /usr/local/bin/"$tool_name" && {
+                                    log_success "Installed $tool_name"
+                                    script_found=true
+                                    break
+                                }
+                            fi
+                        done
+                        
+                        if [ "$script_found" = false ]; then
+                            log_warning "Could not find executable script for $tool_name"
+                        fi
+                    else
+                        log_warning "Failed to install $tool_name requirements, skipping"
+                    fi
+                else
+                    log_warning "Could not find installation method for $tool_name"
+                fi
+                
+                # Cleanup
+                rm -rf "$temp_dir"
+            else
+                log_warning "Failed to clone $tool_name repository"
+            fi
+        done
+    else
+        log_info "All git-based security tools are already installed"
+    fi
+    
+    # Install pipx-based tools (from PyPI using pipx)
+    if [ ${#pipx_tools[@]} -gt 0 ]; then
+        log_info "Installing pipx-based security tools: ${pipx_tools[*]}"
         # Use pipx if available, otherwise fall back to pip
         if command -v pipx &> /dev/null; then
-            for tool in "${pip_tools[@]}"; do
+            for tool in "${pipx_tools[@]}"; do
                 log_info "Installing $tool with pipx..."
                 pipx install "$tool" || log_warning "Failed to install $tool"
             done
         else
-            for tool in "${pip_tools[@]}"; do
+            log_info "pipx not available, installing via pip..."
+            for tool in "${pipx_tools[@]}"; do
                 log_info "Installing $tool with pip..."
                 # Install in virtual environment if active, otherwise use system pip
-                pip install --index-url https://pypi.org/simple/ "$tool" || log_warning "Failed to install $tool"
+                pip install "$tool" || log_warning "Failed to install $tool"
             done
         fi
     else
-        log_info "All pip-based security tools are already installed"
+        log_info "All pipx-based security tools are already installed"
     fi
     
     log_success "Security tools installation completed"
@@ -789,7 +847,14 @@ check_security_tools() {
                 echo -e "  ${YELLOW}Rust tools (requires Cargo): ${missing_rust_tools[*]}${NC}"
             fi
             if [ ${#missing_pip_tools[@]} -gt 0 ]; then
-                echo -e "  ${YELLOW}Python tools (pip install): ${missing_pip_tools[*]}${NC}"
+                echo -e "  ${YELLOW}Python tools:${NC}"
+                for tool in "${missing_pip_tools[@]}"; do
+                    if [ "$tool" = "enum4linux-ng" ]; then
+                        echo -e "    ${YELLOW}enum4linux-ng: pip install git+https://github.com/cddmp/enum4linux-ng.git${NC}"
+                    else
+                        echo -e "    ${YELLOW}$tool: pipx install $tool${NC}"
+                    fi
+                done
             fi
         fi
     else
@@ -836,7 +901,7 @@ fi
 PYTHON_CMD="$VENV_DIR/bin/python"
 
 # Parse arguments
-PORT="8888"
+PORT="8889"
 HOST="127.0.0.1"
 DEBUG=""
 PRODUCTION=false
@@ -972,7 +1037,7 @@ trap cleanup SIGINT SIGTERM
 # Health check function
 check_server_health() {
     local host="${SERVER_HOST:-127.0.0.1}"
-    local port="${SERVER_PORT:-8888}"
+    local port="${SERVER_PORT:-8889}"
     local max_attempts=10
     local attempt=1
     
@@ -988,7 +1053,7 @@ check_server_health() {
 
 # Parse arguments for custom host/port
 SERVER_HOST="127.0.0.1"
-SERVER_PORT="8888"
+SERVER_PORT="8889"
 for arg in "$@"; do
     case $arg in
         --host=*)
@@ -1083,7 +1148,7 @@ EOFALL
       "args": [
         "$SCRIPT_DIR/hexstrike_mcp.py",
         "--server",
-        "http://127.0.0.1:8888"
+        "http://127.0.0.1:8889"
       ],
       "description": "HexStrike AI v6.0 - Advanced Cybersecurity Automation Platform",
       "timeout": 300,
@@ -1119,7 +1184,7 @@ Type=simple
 User=$user
 WorkingDirectory=$SCRIPT_DIR
 Environment=PATH=$VENV_DIR/bin:/usr/local/bin:/usr/bin:/bin
-ExecStart=$VENV_DIR/bin/gunicorn --bind 127.0.0.1:8888 --workers 4 --timeout 300 hexstrike_server:app
+ExecStart=$VENV_DIR/bin/gunicorn --bind 127.0.0.1:8889 --workers 4 --timeout 300 hexstrike_server:app
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal

@@ -76,7 +76,7 @@ cd hexstrike-ai
 
 | Command | Description |
 |---------|-------------|
-| `./start-server.sh` | Start the HexStrike API server (port 8888) |
+| `./start-server.sh` | Start the HexStrike API server (port 8889) |
 | `./start-server.sh --production` | Start with gunicorn (production mode) |
 | `./start-server.sh --host=0.0.0.0` | Expose publicly (⚠️ use with caution) |
 | `./start-frontend.sh` | Start the web frontend (port 3000) |
@@ -392,17 +392,17 @@ python3 hexstrike_server.py
 python3 hexstrike_server.py --debug
 
 # Optional: Custom port configuration
-python3 hexstrike_server.py --port 8888
+python3 hexstrike_server.py --port 8889
 ```
 
 ### Verify Installation
 
 ```bash
 # Test server health
-curl http://localhost:8888/health
+curl http://localhost:8889/health
 
 # Test AI agent capabilities
-curl -X POST http://localhost:8888/api/intelligence/analyze-target \
+curl -X POST http://localhost:8889/api/intelligence/analyze-target \
   -H "Content-Type: application/json" \
   -d '{"target": "example.com", "analysis_type": "comprehensive"}'
 ```
@@ -422,7 +422,7 @@ Edit `~/.config/Claude/claude_desktop_config.json`:
       "args": [
         "/path/to/hexstrike-ai/hexstrike_mcp.py",
         "--server",
-        "http://localhost:8888"
+        "http://localhost:8889"
       ],
       "description": "HexStrike AI v6.0 - Advanced Cybersecurity Automation Platform",
       "timeout": 300,
@@ -444,7 +444,7 @@ Configure VS Code settings in `.vscode/settings.json`:
       "args": [
         "/path/to/hexstrike-ai/hexstrike_mcp.py",
         "--server",
-        "http://localhost:8888"
+        "http://localhost:8889"
       ]
     }
   },
@@ -804,7 +804,7 @@ AI Agent: "Thank you for clarifying ownership and intent. To proceed with a pene
 1. **MCP Connection Failed**:
    ```bash
    # Check if server is running
-   netstat -tlnp | grep 8888
+   netstat -tlnp | grep 8889
    
    # Restart server
    python3 hexstrike_server.py
@@ -900,7 +900,7 @@ source hexstrike-dev/bin/activate
 pip install -r requirements.txt
 
 # 4. Start development server
-python3 hexstrike_server.py --port 8888 --debug
+python3 hexstrike_server.py --port 8889 --debug
 ```
 
 ### Priority Areas for Contribution

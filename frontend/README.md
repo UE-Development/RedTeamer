@@ -27,7 +27,7 @@ Modern React + TypeScript frontend with Agent Interface for HexStrike AI v6.0.
 ## Prerequisites
 
 - Node.js 18+ and npm
-- HexStrike AI backend server running on port 8888
+- HexStrike AI backend server running on port 8889
 
 ## Installation
 

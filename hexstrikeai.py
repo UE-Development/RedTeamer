@@ -42,7 +42,7 @@ def get_venv_python() -> Path:
     return Path(sys.executable)
 
 
-def check_server_health(host: str = "127.0.0.1", port: int = 8888) -> dict:
+def check_server_health(host: str = "127.0.0.1", port: int = 8889) -> dict:
     """Check the health of the HexStrike AI server."""
     import urllib.request
     import urllib.error
@@ -193,7 +193,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  hexstrikeai server                   Start the server on default port (8888)
+  hexstrikeai server                   Start the server on default port (8889)
   hexstrikeai server --port 9999       Start on a custom port
   hexstrikeai server --production      Start with gunicorn (production mode)
   hexstrikeai status                   Check if server is running
@@ -215,8 +215,8 @@ Examples:
     server_parser.add_argument(
         "--port", "-p",
         type=int,
-        default=8888,
-        help="Port to run the server on (default: 8888)"
+        default=8889,
+        help="Port to run the server on (default: 8889)"
     )
     server_parser.add_argument(
         "--host", "-H",
@@ -238,13 +238,13 @@ Examples:
     # Status command
     status_parser = subparsers.add_parser("status", help="Check server status")
     status_parser.add_argument("--host", default="127.0.0.1", help="Server host")
-    status_parser.add_argument("--port", type=int, default=8888, help="Server port")
+    status_parser.add_argument("--port", type=int, default=8889, help="Server port")
     status_parser.set_defaults(func=cmd_status)
 
     # Health command
     health_parser = subparsers.add_parser("health", help="Perform health check")
     health_parser.add_argument("--host", default="127.0.0.1", help="Server host")
-    health_parser.add_argument("--port", type=int, default=8888, help="Server port")
+    health_parser.add_argument("--port", type=int, default=8889, help="Server port")
     health_parser.set_defaults(func=cmd_health)
 
     # Version command
