@@ -857,7 +857,7 @@ GraphQL (future consideration)
 #### REST API Endpoints
 
 ```typescript
-// Base URL: http://localhost:8888/api
+// Base URL: http://localhost:8889/api
 
 // Authentication
 POST   /api/auth/login
@@ -1088,13 +1088,13 @@ The frontend is designed to be accessible externally via IP address for remote s
 1. **Secure Web Server**: A production-grade web server (NGINX, Apache, or Caddy) is required for external access
 2. **TLS/SSL Certificates**: HTTPS must be enabled with valid SSL certificates (Let's Encrypt recommended)
 3. **Reverse Proxy Configuration**: The web server should proxy requests to the backend API
-4. **Firewall Rules**: Only required ports (443 for HTTPS, 8888 for API) should be exposed
+4. **Firewall Rules**: Only required ports (443 for HTTPS, 8889 for API) should be exposed
 
 #### Recommended Setup for External Access
 
 ```bash
 # Example: Bind server to all interfaces for external access
-./start-server.sh --host=0.0.0.0 --port=8888 --production
+./start-server.sh --host=0.0.0.0 --port=8889 --production
 
 # Use with NGINX as a secure reverse proxy (recommended)
 ```
@@ -1119,7 +1119,7 @@ server {
     }
 
     location /api {
-        proxy_pass http://127.0.0.1:8888;
+        proxy_pass http://127.0.0.1:8889;
         proxy_http_version 1.1;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1180,8 +1180,8 @@ server {
 
 ```typescript
 // Environment Variables (never commit)
-REACT_APP_API_URL=http://localhost:8888
-REACT_APP_WS_URL=ws://localhost:8888
+REACT_APP_API_URL=http://localhost:8889
+REACT_APP_WS_URL=ws://localhost:8889
 REACT_APP_AUTH_DOMAIN=auth.hexstrike.ai
 
 // Security Headers
@@ -1420,7 +1420,7 @@ const secureStorage = {
 ```yaml
 Environment: Development
 URL: http://localhost:3000
-API: http://localhost:8888
+API: http://localhost:8889
 Database: SQLite (local)
 Caching: In-memory
 Logging: Console + File
@@ -1653,7 +1653,7 @@ services:
     ports:
       - "3000:80"
     environment:
-      - REACT_APP_API_URL=http://backend:8888
+      - REACT_APP_API_URL=http://backend:8889
     depends_on:
       - backend
     networks:
@@ -1664,7 +1664,7 @@ services:
       context: .
       dockerfile: Dockerfile.backend
     ports:
-      - "8888:8888"
+      - "8889:8889"
     environment:
       - DATABASE_URL=postgresql://user:pass@db:5432/hexstrike
       - REDIS_URL=redis://redis:6379

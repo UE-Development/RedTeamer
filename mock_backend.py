@@ -189,11 +189,11 @@ if __name__ == "__main__":
 ║   Mock HexStrike AI Backend Server                      ║
 ║   Frontend Development Mode                              ║
 ╠══════════════════════════════════════════════════════════╣
-║   Port: 8888                                             ║
+║   Port: 8889                                             ║
 ║   CORS: Enabled                                          ║
 ║   Debug: {}                                       ║
 ║   Status: Ready for frontend development                 ║
 ╚══════════════════════════════════════════════════════════╝
     """.format('Enabled' if debug_mode else 'Disabled'))
     
-    app.run(host="0.0.0.0", port=8888, debug=debug_mode)
+    app.run(host="0.0.0.0", port=8889, debug=debug_mode)

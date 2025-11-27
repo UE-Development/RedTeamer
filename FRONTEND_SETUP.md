@@ -80,7 +80,7 @@ The frontend foundation has been successfully implemented based on FEATURES.md s
 
 ### Prerequisites
 - Node.js 18+ and npm
-- HexStrike AI backend running on port 8888
+- HexStrike AI backend running on port 8889
 
 ### Installation
 
@@ -166,14 +166,14 @@ frontend/
 ### Environment Variables (.env)
 
 ```env
-VITE_API_URL=http://localhost:8888
-VITE_WS_URL=ws://localhost:8888
+VITE_API_URL=http://localhost:8889
+VITE_WS_URL=ws://localhost:8889
 ```
 
 ### Vite Configuration
 
 The Vite config includes:
-- API proxy to backend (port 8888)
+- API proxy to backend (port 8889)
 - Development server on port 3000
 - Fast HMR (Hot Module Replacement)
 
