@@ -65,7 +65,7 @@ import { apiClient } from '../services/api';
 interface AIModel {
   id: string;
   name: string;
-  category: 'recommended' | 'anthropic' | 'openai' | 'google' | 'meta' | 'mistral' | 'other';
+  category: 'recommended' | 'anthropic' | 'openai' | 'google' | 'meta' | 'mistral' | 'xai' | 'other';
   description?: string;
 }
 
@@ -73,6 +73,8 @@ const AI_MODELS: AIModel[] = [
   // Recommended / Top Choices
   { id: 'anthropic/claude-3.5-sonnet', name: '🌟 Claude 3.5 Sonnet', category: 'recommended', description: 'Best for security analysis' },
   { id: 'openai/gpt-4o', name: '🌟 GPT-4o', category: 'recommended', description: 'Fastest GPT-4 model' },
+  { id: 'openai/gpt-4o-mini', name: '🌟 GPT-4o Mini', category: 'recommended', description: 'Fast and cost-effective' },
+  { id: 'x-ai/grok-3-fast-code-1', name: '🌟 Grok Fast Code 1', category: 'recommended', description: 'xAI code-optimized model' },
   { id: 'anthropic/claude-3-opus', name: '🌟 Claude 3 Opus', category: 'recommended', description: 'Most capable model' },
   { id: 'google/gemini-pro-1.5', name: '🌟 Gemini Pro 1.5', category: 'recommended', description: 'Long context window' },
   
@@ -117,6 +119,12 @@ const AI_MODELS: AIModel[] = [
   { id: 'mistralai/mixtral-8x22b-instruct', name: 'Mixtral 8x22B', category: 'mistral' },
   { id: 'mistralai/codestral-latest', name: 'Codestral', category: 'mistral', description: 'Code specialist' },
   
+  // xAI Models
+  { id: 'x-ai/grok-3-fast-code-1', name: 'Grok Fast Code 1', category: 'xai', description: 'Code-optimized model' },
+  { id: 'x-ai/grok-3', name: 'Grok 3', category: 'xai', description: 'Latest Grok model' },
+  { id: 'x-ai/grok-2', name: 'Grok 2', category: 'xai' },
+  { id: 'x-ai/grok-beta', name: 'Grok Beta', category: 'xai' },
+  
   // Other Models
   { id: 'cohere/command-r-plus', name: 'Command R+', category: 'other' },
   { id: 'cohere/command-r', name: 'Command R', category: 'other' },
@@ -136,6 +144,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   google: '🔵 Google',
   meta: '🟠 Meta Llama',
   mistral: '🟡 Mistral AI',
+  xai: '⚫ xAI',
   other: '⚪ Other Models',
 };
 

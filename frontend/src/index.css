@@ -11,6 +11,10 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  
+  /* Prevent text size adjustment on orientation change */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 a {
@@ -28,11 +32,31 @@ body {
   place-items: center;
   min-width: 320px;
   min-height: 100vh;
+  /* Ensure smooth scrolling on iOS */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Improve touch targets on mobile */
+@media (max-width: 600px) {
+  button, 
+  [role="button"],
+  input,
+  select,
+  textarea {
+    min-height: 44px;
+  }
 }
 
 h1 {
   font-size: 3.2em;
   line-height: 1.1;
+}
+
+/* Responsive heading sizes */
+@media (max-width: 600px) {
+  h1 {
+    font-size: 2em;
+  }
 }
 
 button {
@@ -45,6 +69,8 @@ button {
   background-color: #1a1a1a;
   cursor: pointer;
   transition: border-color 0.25s;
+  /* Prevent zoom on double-tap */
+  touch-action: manipulation;
 }
 button:hover {
   border-color: #646cff;
@@ -52,6 +78,16 @@ button:hover {
 button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
+}
+
+/* Prevent pull-to-refresh on mobile when not needed */
+html {
+  overscroll-behavior: none;
+}
+
+/* Disable horizontal scrolling */
+body, html {
+  overflow-x: hidden;
 }
 
 @media (prefers-color-scheme: light) {
