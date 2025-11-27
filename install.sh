@@ -1101,6 +1101,8 @@ if ! command -v node &> /dev/null; then
 fi
 
 # Check Node.js version (Vite 7.x requires 20.19+ or 22.12+)
+# Note: This logic is duplicated from install.sh's check_nodejs_version_compatible()
+# because this script runs standalone and cannot call functions from install.sh
 NODE_VERSION=$(node --version | sed 's/v//')
 NODE_MAJOR=$(echo "$NODE_VERSION" | cut -d. -f1)
 NODE_MINOR=$(echo "$NODE_VERSION" | cut -d. -f2)
@@ -1289,6 +1291,8 @@ if [ -f "$SCRIPT_DIR/start-frontend.sh" ]; then
     # Check Node.js
     if command -v node &> /dev/null; then
         # Check Node.js version (Vite 7.x requires 20.19+ or 22.12+)
+        # Note: This logic is duplicated from install.sh's check_nodejs_version_compatible()
+        # because this script runs standalone and cannot call functions from install.sh
         NODE_VERSION=$(node --version | sed 's/v//')
         NODE_MAJOR=$(echo "$NODE_VERSION" | cut -d. -f1)
         NODE_MINOR=$(echo "$NODE_VERSION" | cut -d. -f2)
