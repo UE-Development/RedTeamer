@@ -1,9 +1,10 @@
 /**
  * Dashboard Page - Main Overview with Data Visualization
  * Enhanced with Recharts for real-time analytics
+ * Shows real data from backend API when demo mode is off
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   Box,
   Card,
@@ -17,6 +18,7 @@ import {
   Grid,
   IconButton,
   Tooltip,
+  Alert,
 } from '@mui/material';
 import SecurityIcon from '@mui/icons-material/Security';
 import BuildIcon from '@mui/icons-material/Build';
@@ -26,8 +28,10 @@ import SmartToyIcon from '@mui/icons-material/SmartToy';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
+import InfoIcon from '@mui/icons-material/Info';
 import { useAppSelector, useAppDispatch } from '../store';
-import { setMetrics } from '../store/slices/dashboardSlice';
+import { setMetrics, updateMetric } from '../store/slices/dashboardSlice';
+import { apiClient } from '../services/api';
 import {
   VulnerabilityTrendChart,
   SeverityPieChart,
@@ -51,12 +55,64 @@ const MOCK_CRITICAL_VULNS = [
   { id: 3, title: 'SSRF in target.net/api/fetch', severity: 'high', cvss: 8.1 },
 ];
 
+interface RealScan {
+  name: string;
+  progress: number;
+  status: string;
+}
+
+interface RealVulnerability {
+  id: number;
+  title: string;
+  severity: string;
+  cvss: number;
+}
+
 const Dashboard = () => {
   const dispatch = useAppDispatch();
   const metrics = useAppSelector((state) => state.dashboard.metrics);
   const mockDataEnabled = useAppSelector((state) => state.settings.developer.mockDataEnabled);
   const [analyticsTab, setAnalyticsTab] = useState(0);
   const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [realScans, setRealScans] = useState<RealScan[]>([]);
+  const [realVulns, setRealVulns] = useState<RealVulnerability[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Fetch real data from backend
+  const fetchRealData = useCallback(async () => {
+    if (mockDataEnabled) return;
+    
+    setIsLoading(true);
+    try {
+      // Try to fetch real data from backend
+      const [scansResponse, vulnsResponse] = await Promise.allSettled([
+        apiClient.listScans(),
+        apiClient.listVulnerabilities(),
+      ]);
+      
+      // Process scans response
+      if (scansResponse.status === 'fulfilled' && scansResponse.value?.data) {
+        const scans = scansResponse.value.data;
+        setRealScans(Array.isArray(scans) ? scans : []);
+        const activeScansCount = Array.isArray(scans) ? scans.filter((s: RealScan) => s.status === 'running').length : 0;
+        dispatch(updateMetric({ key: 'activeScans', value: activeScansCount }));
+      }
+      
+      // Process vulnerabilities response
+      if (vulnsResponse.status === 'fulfilled' && vulnsResponse.value?.data) {
+        const vulns = vulnsResponse.value.data;
+        setRealVulns(Array.isArray(vulns) ? vulns : []);
+        dispatch(updateMetric({ key: 'vulnerabilitiesFound', value: Array.isArray(vulns) ? vulns.length : 0 }));
+      }
+    } catch {
+      // Backend may not have these endpoints yet, that's okay
+      // Just show empty state
+      setRealScans([]);
+      setRealVulns([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [mockDataEnabled, dispatch]);
 
   useEffect(() => {
     if (mockDataEnabled) {
@@ -71,7 +127,7 @@ const Dashboard = () => {
         })
       );
     } else {
-      // Reset to empty state when mock data is disabled
+      // Reset to empty state and try to fetch real data
       dispatch(
         setMetrics({
           activeScans: 0,
@@ -81,10 +137,13 @@ const Dashboard = () => {
           agentsOnline: 0,
         })
       );
+      setRealScans([]);
+      setRealVulns([]);
+      fetchRealData();
     }
-  }, [dispatch, mockDataEnabled]);
+  }, [dispatch, mockDataEnabled, fetchRealData]);
 
-  // Simulate real-time data refresh (only in demo mode)
+  // Refresh data handler
   const handleRefresh = () => {
     if (mockDataEnabled) {
       dispatch(
@@ -96,41 +155,43 @@ const Dashboard = () => {
           agentsOnline: Math.floor(Math.random() * 12) + 4,
         })
       );
+    } else {
+      fetchRealData();
     }
     setLastUpdated(new Date());
   };
 
   // Get active scans based on mock data setting
-  const activeScans = mockDataEnabled ? MOCK_ACTIVE_SCANS : [];
+  const activeScans = mockDataEnabled ? MOCK_ACTIVE_SCANS : realScans;
 
   // Get critical vulnerabilities based on mock data setting
-  const criticalVulns = mockDataEnabled ? MOCK_CRITICAL_VULNS : [];
+  const criticalVulns = mockDataEnabled ? MOCK_CRITICAL_VULNS : realVulns;
 
-  // Metric card configuration with trends
+  // Metric card configuration with trends (trends only shown in demo mode)
   const metricCards = [
     {
       title: 'Active Scans',
       value: metrics.activeScans,
       icon: <RadarIcon sx={{ fontSize: 40, color: 'primary.main' }} />,
       color: 'primary.main',
-      trend: +15,
-      trendLabel: 'from last week',
+      trend: mockDataEnabled ? +15 : 0,
+      trendLabel: mockDataEnabled ? 'from last week' : '',
     },
     {
       title: 'Tools Used',
       value: metrics.toolsUsed,
       icon: <BuildIcon sx={{ fontSize: 40, color: 'info.main' }} />,
       color: 'info.main',
-      trend: +23,
-      trendLabel: 'from last week',
+      trend: mockDataEnabled ? +23 : 0,
+      trendLabel: mockDataEnabled ? 'from last week' : '',
     },
     {
       title: 'Vulnerabilities',
       value: metrics.vulnerabilitiesFound,
       icon: <BugReportIcon sx={{ fontSize: 40, color: 'error.main' }} />,
       color: 'error.main',
-      trend: -8,
-      trendLabel: 'from last week',
+      trend: mockDataEnabled ? -8 : 0,
+      trendLabel: mockDataEnabled ? 'from last week' : '',
     },
     {
       title: 'AI Agents',
@@ -138,12 +199,23 @@ const Dashboard = () => {
       icon: <SmartToyIcon sx={{ fontSize: 40, color: 'success.main' }} />,
       color: 'success.main',
       trend: 0,
-      trendLabel: 'no change',
+      trendLabel: mockDataEnabled ? 'no change' : '',
     },
   ];
 
   return (
     <Box>
+      {/* Info banner when demo mode is off */}
+      {!mockDataEnabled && (
+        <Alert 
+          severity="info" 
+          icon={<InfoIcon />}
+          sx={{ mb: 2 }}
+        >
+          Demo mode is off. Showing real data from the backend. Enable Demo Mode in Settings to see sample data.
+        </Alert>
+      )}
+      
       {/* Header with Refresh */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4" sx={{ fontWeight: 700 }}>
@@ -155,7 +227,7 @@ const Dashboard = () => {
             Last updated: {lastUpdated.toLocaleTimeString()}
           </Typography>
           <Tooltip title="Refresh data">
-            <IconButton onClick={handleRefresh} color="primary">
+            <IconButton onClick={handleRefresh} color="primary" disabled={isLoading}>
               <RefreshIcon />
             </IconButton>
           </Tooltip>

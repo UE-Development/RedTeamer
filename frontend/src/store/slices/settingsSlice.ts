@@ -1,8 +1,12 @@
 /**
  * Settings Slice - Redux state for application settings
+ * Includes localStorage persistence for settings
  */
 
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
+
+// LocalStorage key for persisting settings
+const SETTINGS_STORAGE_KEY = 'hexstrike_settings';
 
 export interface MCPServerSettings {
   host: string;
@@ -58,7 +62,7 @@ export interface SettingsState {
   lastSaved: string | null;
 }
 
-const initialState: SettingsState = {
+const defaultSettings: SettingsState = {
   mcpServer: {
     host: '127.0.0.1',
     port: 8888,
@@ -98,6 +102,48 @@ const initialState: SettingsState = {
   error: null,
   lastSaved: null,
 };
+
+/**
+ * Load settings from localStorage
+ * Falls back to default settings if nothing is stored or if parsing fails
+ */
+const loadSettingsFromStorage = (): SettingsState => {
+  try {
+    const storedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (storedSettings) {
+      const parsed = JSON.parse(storedSettings);
+      // Deep merge with defaults to ensure all fields exist
+      return {
+        ...defaultSettings,
+        ...parsed,
+        mcpServer: { ...defaultSettings.mcpServer, ...parsed.mcpServer },
+        theme: { ...defaultSettings.theme, ...parsed.theme },
+        api: { ...defaultSettings.api, ...parsed.api },
+        aiProvider: { ...defaultSettings.aiProvider, ...parsed.aiProvider },
+        notifications: { ...defaultSettings.notifications, ...parsed.notifications },
+        developer: { ...defaultSettings.developer, ...parsed.developer },
+      };
+    }
+  } catch {
+    // If parsing fails, return default settings
+    console.warn('Failed to load settings from localStorage, using defaults');
+  }
+  return defaultSettings;
+};
+
+/**
+ * Save settings to localStorage
+ */
+const saveSettingsToStorage = (settings: SettingsState): void => {
+  try {
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+  } catch {
+    console.error('Failed to save settings to localStorage');
+  }
+};
+
+// Initialize state from localStorage
+const initialState: SettingsState = loadSettingsFromStorage();
 
 const settingsSlice = createSlice({
   name: 'settings',
@@ -139,8 +185,18 @@ const settingsSlice = createSlice({
     saveSettings: (state) => {
       state.lastSaved = new Date().toISOString();
       state.error = null;
+      // Persist to localStorage when saving
+      saveSettingsToStorage(state);
     },
-    resetSettings: () => initialState,
+    resetSettings: () => {
+      // Clear localStorage when resetting
+      try {
+        localStorage.removeItem(SETTINGS_STORAGE_KEY);
+      } catch {
+        console.error('Failed to clear settings from localStorage');
+      }
+      return defaultSettings;
+    },
   },
 });
 
