@@ -124,9 +124,9 @@ const loadSettingsFromStorage = (): SettingsState => {
         developer: { ...defaultSettings.developer, ...parsed.developer },
       };
     }
-  } catch {
+  } catch (error) {
     // If parsing fails, return default settings
-    console.warn('Failed to load settings from localStorage, using defaults');
+    console.warn('Failed to load settings from localStorage:', error instanceof Error ? error.message : 'Unknown error');
   }
   return defaultSettings;
 };

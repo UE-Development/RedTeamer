@@ -17327,9 +17327,12 @@ def get_alternative_tools():
 # AI AGENTS API ENDPOINTS
 # ============================================================================
 
-# Available agents configuration
-_available_agents = [
-    {
+# Thread lock for agent state modifications
+_agents_lock = threading.Lock()
+
+# Available agents configuration (use dictionary for O(1) lookup)
+_available_agents = {
+    "1": {
         "id": "1",
         "name": "BugBounty Agent",
         "type": "bugbounty",
@@ -17337,7 +17340,7 @@ _available_agents = [
         "capabilities": ["Vulnerability scanning", "Subdomain enumeration", "Port scanning", "Web testing"],
         "description": "Comprehensive bug bounty hunting automation"
     },
-    {
+    "2": {
         "id": "2",
         "name": "CTF Solver",
         "type": "ctf",
@@ -17345,7 +17348,7 @@ _available_agents = [
         "capabilities": ["Challenge solving", "Crypto analysis", "Reverse engineering", "Forensics"],
         "description": "CTF competition assistance and challenge solving"
     },
-    {
+    "3": {
         "id": "3",
         "name": "CVE Intelligence",
         "type": "cve_intelligence",
@@ -17353,7 +17356,7 @@ _available_agents = [
         "capabilities": ["CVE lookup", "Exploit research", "Vulnerability tracking", "Threat intelligence"],
         "description": "CVE database research and vulnerability intelligence"
     },
-    {
+    "4": {
         "id": "4",
         "name": "Exploit Generator",
         "type": "exploit_generator",
@@ -17361,7 +17364,7 @@ _available_agents = [
         "capabilities": ["PoC generation", "Payload crafting", "Exploit development"],
         "description": "Automated exploit and PoC generation"
     },
-    {
+    "5": {
         "id": "5",
         "name": "Web Security Agent",
         "type": "web_security",
@@ -17369,16 +17372,18 @@ _available_agents = [
         "capabilities": ["XSS detection", "SQL injection", "CSRF testing", "API security"],
         "description": "Web application security testing and analysis"
     },
-]
+}
 
 @app.route("/api/agents/list", methods=["GET"])
 def list_agents():
     """List all available AI agents"""
     try:
+        with _agents_lock:
+            agents_list = list(_available_agents.values())
         return jsonify({
             "success": True,
-            "data": _available_agents,
-            "count": len(_available_agents),
+            "data": agents_list,
+            "count": len(agents_list),
             "timestamp": datetime.now().isoformat()
         })
     except Exception as e:
@@ -17389,7 +17394,8 @@ def list_agents():
 def get_agent_status(agent_id: str):
     """Get status of a specific agent"""
     try:
-        agent = next((a for a in _available_agents if a["id"] == agent_id), None)
+        with _agents_lock:
+            agent = _available_agents.get(agent_id)
         if not agent:
             return jsonify({"error": f"Agent {agent_id} not found"}), 404
         
@@ -17408,18 +17414,21 @@ def get_agent_status(agent_id: str):
 def activate_agent(agent_id: str):
     """Activate an agent"""
     try:
-        agent = next((a for a in _available_agents if a["id"] == agent_id), None)
-        if not agent:
-            return jsonify({"error": f"Agent {agent_id} not found"}), 404
+        with _agents_lock:
+            agent = _available_agents.get(agent_id)
+            if not agent:
+                return jsonify({"error": f"Agent {agent_id} not found"}), 404
+            
+            agent["status"] = "active"
+            agent_name = agent["name"]
         
-        agent["status"] = "active"
-        logger.info(f"Agent {agent_id} ({agent['name']}) activated")
+        logger.info(f"Agent {agent_id} ({agent_name}) activated")
         
         return jsonify({
             "success": True,
             "agent_id": agent_id,
             "status": "active",
-            "message": f"Agent {agent['name']} activated",
+            "message": f"Agent {agent_name} activated",
             "timestamp": datetime.now().isoformat()
         })
     except Exception as e:
@@ -17430,18 +17439,21 @@ def activate_agent(agent_id: str):
 def deactivate_agent(agent_id: str):
     """Deactivate an agent"""
     try:
-        agent = next((a for a in _available_agents if a["id"] == agent_id), None)
-        if not agent:
-            return jsonify({"error": f"Agent {agent_id} not found"}), 404
+        with _agents_lock:
+            agent = _available_agents.get(agent_id)
+            if not agent:
+                return jsonify({"error": f"Agent {agent_id} not found"}), 404
+            
+            agent["status"] = "standby"
+            agent_name = agent["name"]
         
-        agent["status"] = "standby"
-        logger.info(f"Agent {agent_id} ({agent['name']}) deactivated")
+        logger.info(f"Agent {agent_id} ({agent_name}) deactivated")
         
         return jsonify({
             "success": True,
             "agent_id": agent_id,
             "status": "standby",
-            "message": f"Agent {agent['name']} deactivated",
+            "message": f"Agent {agent_name} deactivated",
             "timestamp": datetime.now().isoformat()
         })
     except Exception as e:
@@ -17458,11 +17470,15 @@ def send_agent_message(agent_id: str):
         if not message:
             return jsonify({"error": "Message is required"}), 400
         
-        agent = next((a for a in _available_agents if a["id"] == agent_id), None)
+        with _agents_lock:
+            agent = _available_agents.get(agent_id)
+        
         if not agent:
             return jsonify({"error": f"Agent {agent_id} not found"}), 404
         
-        logger.info(f"Agent {agent_id} ({agent['name']}) received message: {message[:100]}...")
+        # Sanitize message for logging (remove sensitive patterns)
+        safe_log_message = message[:100].replace('\n', ' ').replace('\r', '')
+        logger.info(f"Agent {agent_id} ({agent['name']}) received message (length: {len(message)})")
         
         # Process the message based on agent type and content
         response_content = _process_agent_message(agent, message)

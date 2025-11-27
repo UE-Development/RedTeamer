@@ -36,6 +36,16 @@ import type { CollaborationTask, CollaborationWorkflow } from '../components/age
 import type { Agent, AgentMessage } from '../types';
 import { apiClient } from '../services/api';
 
+// Interface for agent message API response
+interface AgentMessageResponse {
+  response?: string;
+  message?: string;
+  result?: string;
+  tools_used?: string[];
+  toolsUsed?: string[];
+  status?: string;
+}
+
 // Tab indices for better maintainability
 const TABS = {
   CHAT: 0,
@@ -325,8 +335,7 @@ const AgentsPage = () => {
         // Use real backend API
         try {
           const response = await apiClient.sendAgentMessage(selectedAgent.id, content);
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const data = response as any;
+          const data = response as AgentMessageResponse;
           
           const agentResponse: AgentMessage = {
             id: `msg-${Date.now() + 1}`,
@@ -427,8 +436,7 @@ const AgentsPage = () => {
         // Use real API
         try {
           const response = await apiClient.sendAgentMessage(agentId, content);
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const data = response as any;
+          const data = response as AgentMessageResponse;
           
           setMultiAgentChats((innerPrev) =>
             innerPrev.map((innerChat) => {

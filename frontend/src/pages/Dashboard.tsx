@@ -104,9 +104,10 @@ const Dashboard = () => {
         setRealVulns(Array.isArray(vulns) ? vulns : []);
         dispatch(updateMetric({ key: 'vulnerabilitiesFound', value: Array.isArray(vulns) ? vulns.length : 0 }));
       }
-    } catch {
+    } catch (error) {
       // Backend may not have these endpoints yet, that's okay
-      // Just show empty state
+      // Log the error for debugging purposes
+      console.warn('Failed to fetch real data from backend:', error instanceof Error ? error.message : 'Unknown error');
       setRealScans([]);
       setRealVulns([]);
     } finally {
