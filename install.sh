@@ -44,6 +44,8 @@ SKIP_FRONTEND=false
 SKIP_TOOL_CHECK=false
 SKIP_SECURITY_TOOLS=false
 GENERATE_SYSTEMD=false
+INSTALL_SYSTEMD=false
+INIT_DATABASE=true
 
 # Detected OS info
 DETECTED_OS=""
@@ -82,7 +84,9 @@ print_usage() {
     echo "  --recreate-venv             Force recreation of the virtual environment"
     echo "  --skip-frontend             Skip frontend installation"
     echo "  --skip-tool-check           Skip security tool availability check"
-    echo "  --generate-systemd          Generate systemd service file"
+    echo "  --generate-systemd          Generate systemd service files (without installing)"
+    echo "  --install-systemd           Generate AND install systemd services (requires sudo)"
+    echo "  --skip-database             Skip database initialization"
     echo "  -h, --help                  Show this help message"
     echo ""
     echo "Examples:"
@@ -90,7 +94,8 @@ print_usage() {
     echo "  $0 --skip-security-tools            # Skip security tool installation"
     echo "  $0 --with-offensive-tools           # Include binary exploitation tools"
     echo "  $0 --development                    # Install in development mode"
-    echo "  $0 --generate-systemd               # Production setup with systemd service"
+    echo "  $0 --generate-systemd               # Generate systemd service files"
+    echo "  $0 --install-systemd                # Generate AND install systemd services"
     echo ""
 }
 
@@ -1278,6 +1283,15 @@ if [ "$SERVER_HOST" = "0.0.0.0" ]; then
     CACHED_EXTERNAL_IP=$(get_external_ip)
 fi
 
+# Initialize database if hexstrike_database.py exists
+VENV_DIR="$SCRIPT_DIR/hexstrike-env"
+if [ -f "$SCRIPT_DIR/hexstrike_database.py" ] && [ -f "$VENV_DIR/bin/python" ]; then
+    echo -e "${CYAN}🗄️  Initializing database...${NC}"
+    "$VENV_DIR/bin/python" "$SCRIPT_DIR/hexstrike_database.py" --init 2>/dev/null && \
+        echo -e "${GREEN}✅ Database ready${NC}" || \
+        echo -e "${YELLOW}⚠️  Database initialization skipped (may already exist)${NC}"
+fi
+
 echo -e "${CYAN}"
 echo "╔═══════════════════════════════════════════════════════════════╗"
 echo "║           🚀 Starting HexStrike AI - All Services             ║"
@@ -1479,15 +1493,104 @@ generate_systemd_service() {
         return
     fi
     
-    log_step "Generating systemd Service File"
+    log_step "Generating systemd Service Files"
     
-    local service_file="$SCRIPT_DIR/hexstrike-ai.service"
     local user=$(whoami)
     
-    cat > "$service_file" << EOFSYSTEMD
+    # Backend Service
+    local backend_service="$SCRIPT_DIR/hexstrike-ai-backend.service"
+    cat > "$backend_service" << EOFSYSTEMD_BACKEND
 [Unit]
-Description=HexStrike AI - Cybersecurity Automation Platform
+Description=HexStrike AI Backend Server - Cybersecurity Automation Platform
 After=network.target
+Documentation=https://github.com/UE-Development/RedTeamer
+
+[Service]
+Type=simple
+User=$user
+WorkingDirectory=$SCRIPT_DIR
+Environment=PATH=$VENV_DIR/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=$VENV_DIR/bin/python $SCRIPT_DIR/hexstrike_server.py --host 127.0.0.1 --port 8889
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+EOFSYSTEMD_BACKEND
+    log_success "Created hexstrike-ai-backend.service"
+    
+    # Frontend Service (only if frontend directory exists)
+    if [ -d "$FRONTEND_DIR" ]; then
+        local frontend_service="$SCRIPT_DIR/hexstrike-ai-frontend.service"
+        cat > "$frontend_service" << EOFSYSTEMD_FRONTEND
+[Unit]
+Description=HexStrike AI Frontend - Web Interface
+After=network.target hexstrike-ai-backend.service
+Wants=hexstrike-ai-backend.service
+Documentation=https://github.com/UE-Development/RedTeamer
+
+[Service]
+Type=simple
+User=$user
+WorkingDirectory=$FRONTEND_DIR
+ExecStart=/usr/bin/env npm run dev
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+EOFSYSTEMD_FRONTEND
+        log_success "Created hexstrike-ai-frontend.service"
+    fi
+    
+    # MCP Service
+    local mcp_service="$SCRIPT_DIR/hexstrike-ai-mcp.service"
+    cat > "$mcp_service" << EOFSYSTEMD_MCP
+[Unit]
+Description=HexStrike AI MCP Server - AI Agent Communication Interface
+After=network.target hexstrike-ai-backend.service
+Wants=hexstrike-ai-backend.service
+Documentation=https://github.com/UE-Development/RedTeamer
+
+[Service]
+Type=simple
+User=$user
+WorkingDirectory=$SCRIPT_DIR
+Environment=PATH=$VENV_DIR/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=$VENV_DIR/bin/python $SCRIPT_DIR/hexstrike_mcp.py --server http://127.0.0.1:8889
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+EOFSYSTEMD_MCP
+    log_success "Created hexstrike-ai-mcp.service"
+    
+    # Also create the legacy single service file for backward compatibility
+    local legacy_service="$SCRIPT_DIR/hexstrike-ai.service"
+    cat > "$legacy_service" << EOFSYSTEMD_LEGACY
+[Unit]
+Description=HexStrike AI - Cybersecurity Automation Platform (All-in-One)
+After=network.target
+Documentation=https://github.com/UE-Development/RedTeamer
 
 [Service]
 Type=simple
@@ -1500,18 +1603,166 @@ RestartSec=5
 StandardOutput=journal
 StandardError=journal
 
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
 [Install]
 WantedBy=multi-user.target
-EOFSYSTEMD
+EOFSYSTEMD_LEGACY
+    log_success "Created hexstrike-ai.service (legacy all-in-one)"
     
-    log_success "Created hexstrike-ai.service"
     echo ""
-    log_info "To install the systemd service, run:"
-    echo -e "  ${YELLOW}sudo cp $service_file /etc/systemd/system/${NC}"
+    log_info "To install the systemd services, run:"
+    echo ""
+    echo -e "  ${CYAN}# Install all service files${NC}"
+    echo -e "  ${YELLOW}sudo cp $SCRIPT_DIR/hexstrike-ai-backend.service /etc/systemd/system/${NC}"
+    if [ -d "$FRONTEND_DIR" ]; then
+        echo -e "  ${YELLOW}sudo cp $SCRIPT_DIR/hexstrike-ai-frontend.service /etc/systemd/system/${NC}"
+    fi
+    echo -e "  ${YELLOW}sudo cp $SCRIPT_DIR/hexstrike-ai-mcp.service /etc/systemd/system/${NC}"
+    echo ""
+    echo -e "  ${CYAN}# Reload systemd and enable services${NC}"
     echo -e "  ${YELLOW}sudo systemctl daemon-reload${NC}"
-    echo -e "  ${YELLOW}sudo systemctl enable hexstrike-ai${NC}"
-    echo -e "  ${YELLOW}sudo systemctl start hexstrike-ai${NC}"
+    echo -e "  ${YELLOW}sudo systemctl enable hexstrike-ai-backend hexstrike-ai-mcp${NC}"
+    if [ -d "$FRONTEND_DIR" ]; then
+        echo -e "  ${YELLOW}sudo systemctl enable hexstrike-ai-frontend${NC}"
+    fi
+    echo ""
+    echo -e "  ${CYAN}# Start services${NC}"
+    echo -e "  ${YELLOW}sudo systemctl start hexstrike-ai-backend${NC}"
+    if [ -d "$FRONTEND_DIR" ]; then
+        echo -e "  ${YELLOW}sudo systemctl start hexstrike-ai-frontend${NC}"
+    fi
+    echo -e "  ${YELLOW}sudo systemctl start hexstrike-ai-mcp${NC}"
+    echo ""
+    echo -e "  ${CYAN}# Check status${NC}"
+    echo -e "  ${YELLOW}sudo systemctl status hexstrike-ai-backend${NC}"
+    if [ -d "$FRONTEND_DIR" ]; then
+        echo -e "  ${YELLOW}sudo systemctl status hexstrike-ai-frontend${NC}"
+    fi
+    echo -e "  ${YELLOW}sudo systemctl status hexstrike-ai-mcp${NC}"
+    echo ""
+    echo -e "  ${CYAN}# View logs${NC}"
+    echo -e "  ${YELLOW}sudo journalctl -u hexstrike-ai-backend -f${NC}"
+    
+    # Automatically install systemd services if requested
+    if [ "$INSTALL_SYSTEMD" = true ]; then
+        install_systemd_services
+    fi
 }
+
+install_systemd_services() {
+    log_step "Installing systemd Services"
+    
+    # Check if we have sudo access
+    if ! sudo -n true 2>/dev/null; then
+        log_warning "sudo access required for systemd installation"
+        log_info "Please enter your password to install systemd services:"
+    fi
+    
+    # Install backend service
+    log_info "Installing hexstrike-ai-backend.service..."
+    if sudo cp "$SCRIPT_DIR/hexstrike-ai-backend.service" /etc/systemd/system/; then
+        log_success "Backend service installed"
+    else
+        log_error "Failed to install backend service"
+        return 1
+    fi
+    
+    # Install frontend service if frontend exists
+    if [ -d "$FRONTEND_DIR" ] && [ -f "$SCRIPT_DIR/hexstrike-ai-frontend.service" ]; then
+        log_info "Installing hexstrike-ai-frontend.service..."
+        if sudo cp "$SCRIPT_DIR/hexstrike-ai-frontend.service" /etc/systemd/system/; then
+            log_success "Frontend service installed"
+        else
+            log_warning "Failed to install frontend service"
+        fi
+    fi
+    
+    # Install MCP service
+    log_info "Installing hexstrike-ai-mcp.service..."
+    if sudo cp "$SCRIPT_DIR/hexstrike-ai-mcp.service" /etc/systemd/system/; then
+        log_success "MCP service installed"
+    else
+        log_error "Failed to install MCP service"
+        return 1
+    fi
+    
+    # Reload systemd daemon
+    log_info "Reloading systemd daemon..."
+    if sudo systemctl daemon-reload; then
+        log_success "Systemd daemon reloaded"
+    else
+        log_error "Failed to reload systemd daemon"
+        return 1
+    fi
+    
+    # Enable services
+    log_info "Enabling services to start on boot..."
+    sudo systemctl enable hexstrike-ai-backend hexstrike-ai-mcp 2>/dev/null || true
+    if [ -d "$FRONTEND_DIR" ]; then
+        sudo systemctl enable hexstrike-ai-frontend 2>/dev/null || true
+    fi
+    log_success "Services enabled for auto-start on boot"
+    
+    # Start services
+    log_info "Starting HexStrike AI services..."
+    if sudo systemctl start hexstrike-ai-backend; then
+        log_success "Backend service started"
+    else
+        log_warning "Failed to start backend service (may already be running or port in use)"
+    fi
+    
+    if [ -d "$FRONTEND_DIR" ]; then
+        if sudo systemctl start hexstrike-ai-frontend; then
+            log_success "Frontend service started"
+        else
+            log_warning "Failed to start frontend service"
+        fi
+    fi
+    
+    if sudo systemctl start hexstrike-ai-mcp; then
+        log_success "MCP service started"
+    else
+        log_warning "Failed to start MCP service (may require backend to be running)"
+    fi
+    
+    echo ""
+    log_success "All systemd services installed and started!"
+    echo ""
+    log_info "Service status:"
+    sudo systemctl status hexstrike-ai-backend --no-pager -l 2>/dev/null | head -5 || true
+    echo ""
+}
+
+# ============================================================================
+# DATABASE INITIALIZATION
+# ============================================================================
+
+initialize_database() {
+    if [ "$INIT_DATABASE" != true ]; then
+        return
+    fi
+    
+    log_step "Initializing Database"
+    
+    if [ -f "$SCRIPT_DIR/hexstrike_database.py" ]; then
+        log_info "Initializing SQLite database..."
+        if "$VENV_DIR/bin/python" "$SCRIPT_DIR/hexstrike_database.py" --init 2>/dev/null; then
+            log_success "Database initialized successfully"
+            
+            # Show database stats
+            log_info "Database statistics:"
+            "$VENV_DIR/bin/python" "$SCRIPT_DIR/hexstrike_database.py" --stats 2>/dev/null || true
+        else
+            log_warning "Database initialization had issues (may already exist)"
+        fi
+    else
+        log_warning "hexstrike_database.py not found, skipping database initialization"
+    fi
+}
+
 
 # ============================================================================
 # PRINT SUMMARY
@@ -1619,6 +1870,16 @@ parse_arguments() {
                 PRODUCTION_MODE=true  # systemd implies production
                 shift
                 ;;
+            --install-systemd)
+                GENERATE_SYSTEMD=true
+                INSTALL_SYSTEMD=true
+                PRODUCTION_MODE=true  # systemd implies production
+                shift
+                ;;
+            --skip-database)
+                INIT_DATABASE=false
+                shift
+                ;;
             -h|--help)
                 print_usage
                 exit 0
@@ -1682,6 +1943,9 @@ main() {
     
     # Optional: Generate systemd service
     generate_systemd_service
+    
+    # Initialize database
+    initialize_database
     
     # Deactivate virtual environment
     deactivate 2>/dev/null || true

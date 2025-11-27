@@ -51,7 +51,15 @@ start-frontend.sh
 start-all.sh
 hexstrike-mcp-config.json
 hexstrike-ai.service
+hexstrike-ai-backend.service
+hexstrike-ai-frontend.service
+hexstrike-ai-mcp.service
 .hexstrike_port
+
+# Database files (contain user data)
+hexstrike_data.db
+hexstrike_data.db.backup_*
+*.db.backup_*
 
 # OS specific
 .DS_Store

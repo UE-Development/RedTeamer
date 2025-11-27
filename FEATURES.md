@@ -1876,6 +1876,323 @@ For questions, suggestions, or collaboration opportunities:
 
 **Made with ❤️ by the HexStrike AI Team**
 
-*Last Updated: November 26, 2025*
+*Last Updated: November 27, 2025*
 
 </div>
+
+---
+
+## 🆕 New Features (v6.1)
+
+### 🔄 Persistent Server Operation (systemd Integration)
+
+HexStrike AI now supports running as a persistent system service that automatically starts after reboot.
+
+#### Features
+
+- **Automatic Startup**: Servers start automatically when the system boots
+- **Service Management**: Full systemd integration for easy management
+- **Multiple Services**: Separate service files for Backend, Frontend, and MCP
+- **Health Monitoring**: Automatic restart on failure with configurable delays
+- **Logging**: Integrated with system journal for centralized logging
+
+#### Usage
+
+```bash
+# Option 1: Automatic installation (recommended)
+# Generates, installs, enables, and starts all services automatically
+./install.sh --install-systemd
+
+# Option 2: Manual installation
+# Generate systemd service files only
+./install.sh --generate-systemd
+
+# Then manually install and enable services
+sudo cp hexstrike-ai-backend.service /etc/systemd/system/
+sudo cp hexstrike-ai-frontend.service /etc/systemd/system/
+sudo cp hexstrike-ai-mcp.service /etc/systemd/system/
+
+sudo systemctl daemon-reload
+
+# Enable services to start on boot
+sudo systemctl enable hexstrike-ai-backend
+sudo systemctl enable hexstrike-ai-frontend
+sudo systemctl enable hexstrike-ai-mcp
+
+# Start services
+sudo systemctl start hexstrike-ai-backend
+sudo systemctl start hexstrike-ai-frontend
+sudo systemctl start hexstrike-ai-mcp
+
+# Check status
+sudo systemctl status hexstrike-ai-backend
+sudo systemctl status hexstrike-ai-frontend
+sudo systemctl status hexstrike-ai-mcp
+
+# View logs
+sudo journalctl -u hexstrike-ai-backend -f
+sudo journalctl -u hexstrike-ai-frontend -f
+sudo journalctl -u hexstrike-ai-mcp -f
+
+# Stop services
+sudo systemctl stop hexstrike-ai-backend
+sudo systemctl stop hexstrike-ai-frontend
+sudo systemctl stop hexstrike-ai-mcp
+```
+
+#### Service Files
+
+**Backend Service** (`hexstrike-ai-backend.service`):
+```ini
+[Unit]
+Description=HexStrike AI Backend Server
+After=network.target
+
+[Service]
+Type=simple
+User=<your-user>
+WorkingDirectory=/path/to/RedTeamer
+Environment=PATH=/path/to/RedTeamer/hexstrike-env/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/path/to/RedTeamer/hexstrike-env/bin/python hexstrike_server.py --host 127.0.0.1 --port 8889
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+```
+
+**Frontend Service** (`hexstrike-ai-frontend.service`):
+```ini
+[Unit]
+Description=HexStrike AI Frontend
+After=network.target hexstrike-ai-backend.service
+Wants=hexstrike-ai-backend.service
+
+[Service]
+Type=simple
+User=<your-user>
+WorkingDirectory=/path/to/RedTeamer/frontend
+ExecStart=/usr/bin/npm run dev
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+```
+
+**MCP Service** (`hexstrike-ai-mcp.service`):
+```ini
+[Unit]
+Description=HexStrike AI MCP Server
+After=network.target hexstrike-ai-backend.service
+Wants=hexstrike-ai-backend.service
+
+[Service]
+Type=simple
+User=<your-user>
+WorkingDirectory=/path/to/RedTeamer
+Environment=PATH=/path/to/RedTeamer/hexstrike-env/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/path/to/RedTeamer/hexstrike-env/bin/python hexstrike_mcp.py --server http://127.0.0.1:8889
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+```
+
+---
+
+### 🗄️ Database Integration (Persistent Storage)
+
+HexStrike AI now includes SQLite database support for persistent storage of all settings and user data.
+
+#### Features
+
+- **Automatic Initialization**: Database is automatically initialized during `./install.sh` and `./start-all.sh`
+- **Settings Persistence**: All application settings stored persistently
+- **User Management**: User accounts with preferences and session management
+- **Project Management**: Create and manage security assessment projects
+- **Scan History**: Complete history of all scans with results
+- **Vulnerability Tracking**: Track discovered vulnerabilities across projects
+- **Agent Configurations**: Persistent AI agent settings
+- **Tool Configurations**: Store custom tool parameters
+- **Audit Logging**: Track all user actions for compliance
+
+#### Database Schema
+
+```
+┌─────────────────┐     ┌─────────────────┐
+│    settings     │     │     users       │
+├─────────────────┤     ├─────────────────┤
+│ id              │     │ id              │
+│ category        │     │ username        │
+│ key             │     │ email           │
+│ value           │     │ password_hash   │
+│ value_type      │     │ role            │
+│ description     │     │ preferences     │
+└─────────────────┘     │ last_login      │
+                        └─────────────────┘
+         │                      │
+         │                      │
+┌────────▼────────┐     ┌──────▼──────────┐
+│    projects     │     │    sessions     │
+├─────────────────┤     ├─────────────────┤
+│ id              │     │ id              │
+│ name            │     │ user_id         │
+│ description     │     │ session_token   │
+│ client          │     │ ip_address      │
+│ status          │     │ expires_at      │
+│ created_by      │     └─────────────────┘
+└────────┬────────┘
+         │
+    ┌────┴────┐
+    │         │
+┌───▼───┐ ┌───▼───────────┐
+│targets│ │    scans      │
+├───────┤ ├───────────────┤
+│ id    │ │ id            │
+│ target│ │ project_id    │
+│ type  │ │ target_id     │
+└───────┘ │ scan_type     │
+          │ status        │
+          │ progress      │
+          │ results       │
+          └───────┬───────┘
+                  │
+          ┌───────▼───────┐
+          │vulnerabilities│
+          ├───────────────┤
+          │ id            │
+          │ scan_id       │
+          │ title         │
+          │ severity      │
+          │ cvss_score    │
+          │ cve_id        │
+          │ status        │
+          └───────────────┘
+```
+
+#### Usage
+
+```python
+from hexstrike_database import get_database
+
+# Get database instance
+db = get_database()
+
+# Settings Management
+db.set_setting('server', 'port', 8889, 'integer', 'Server port')
+port = db.get_setting('server', 'port', default=8889)
+all_settings = db.get_all_settings()
+
+# Project Management
+project_id = db.create_project("Pentest 2025", "Annual security assessment", "ACME Corp")
+projects = db.get_projects(status='active')
+
+# Scan Management
+scan_id = db.create_scan(project_id, target_id, "comprehensive")
+db.update_scan_progress(scan_id, 50, "vulnerability_testing", ["nmap", "nuclei"])
+db.complete_scan(scan_id, "completed", {"vulnerabilities": 5})
+
+# Vulnerability Tracking
+vuln_id = db.add_vulnerability(
+    scan_id=scan_id,
+    project_id=project_id,
+    title="SQL Injection",
+    severity="critical",
+    cvss_score=9.8,
+    cve_id="CVE-2024-XXXXX"
+)
+db.update_vulnerability_status(vuln_id, "confirmed")
+
+# Agent Configuration
+db.set_agent_config("BugBountyAgent", "scanning", {"max_depth": 3})
+agent_config = db.get_agent_config("BugBountyAgent")
+```
+
+#### CLI Commands
+
+```bash
+# Initialize database
+python hexstrike_database.py --init
+
+# View database statistics
+python hexstrike_database.py --stats
+
+# List all settings
+python hexstrike_database.py --list-settings
+
+# Get a specific setting
+python hexstrike_database.py --get server port
+
+# Set a setting
+python hexstrike_database.py --set server port 9000
+
+# Create a backup
+python hexstrike_database.py --backup /path/to/backup.db
+
+# Optimize database
+python hexstrike_database.py --vacuum
+```
+
+#### Default Settings
+
+| Category | Key | Default | Description |
+|----------|-----|---------|-------------|
+| server | host | 127.0.0.1 | Server bind address |
+| server | port | 8889 | Server port |
+| server | debug | false | Debug mode |
+| server | auto_port | true | Automatic port fallback |
+| frontend | port | 3000 | Frontend dev server port |
+| frontend | theme | dark | UI theme |
+| security | session_timeout | 3600 | Session timeout (seconds) |
+| security | require_auth | false | Require authentication |
+| scan | default_timeout | 300 | Default scan timeout |
+| scan | max_concurrent | 5 | Max concurrent scans |
+| agent | default_model | gpt-4 | Default AI model |
+| agent | temperature | 0.7 | Agent response temperature |
+
+---
+
+### 🔌 Dynamic Port Fallback
+
+Both `hexstrike_server.py` and `mock_backend.py` now include automatic port fallback when the default port is occupied.
+
+#### Features
+
+- **Automatic Detection**: Detects if the requested port is in use
+- **Process Identification**: Shows which process is using the port
+- **Automatic Fallback**: Finds the next available port automatically
+- **CLI Options**: `--no-auto-port` to disable automatic fallback
+
+#### Usage
+
+```bash
+# Default behavior - auto-switches port if 8889 is busy
+python hexstrike_server.py
+
+# Disable auto-port (fail if port unavailable)
+python hexstrike_server.py --no-auto-port
+
+# Specify custom port
+python hexstrike_server.py --port 9000
+
+# Same options available for mock_backend.py
+python mock_backend.py
+python mock_backend.py --no-auto-port
+python mock_backend.py --port 9000
+```
+
+#### Example Output
+
+```
+WARNING - ⚠️  Port 8889 is in use by: python3 (PID: 1234)
+INFO - 🔄 Auto-switching to available port: 8890
+```
+
