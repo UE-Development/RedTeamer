@@ -1024,6 +1024,7 @@ PORT="8889"
 HOST="127.0.0.1"
 DEBUG=""
 PRODUCTION=false
+KILL_EXISTING="--kill-existing"  # Kill existing processes by default
 # Automatic port fallback is now the default in hexstrike_server.py
 # Use --no-auto-port to disable it
 NO_AUTO_PORT=""
@@ -1045,6 +1046,12 @@ for arg in "$@"; do
         --no-auto-port)
             NO_AUTO_PORT="--no-auto-port"  # Disable automatic port fallback
             ;;
+        --no-kill-existing)
+            KILL_EXISTING=""  # Disable automatic cleanup of existing processes
+            ;;
+        --kill-existing)
+            KILL_EXISTING="--kill-existing"  # Explicitly enable (this is the default)
+            ;;
         --auto-port)
             # Kept for backward compatibility - now a no-op since auto-port is the default
             ;;
@@ -1064,8 +1071,33 @@ if [ "$PRODUCTION" = true ]; then
     # Check if gunicorn is available
     if ! "$PYTHON_CMD" -c "import gunicorn" &> /dev/null; then
         echo -e "${YELLOW}gunicorn not found, using built-in server${NC}"
-        "$PYTHON_CMD" "$SCRIPT_DIR/hexstrike_server.py" --host "$HOST" --port "$PORT" $NO_AUTO_PORT
+        "$PYTHON_CMD" "$SCRIPT_DIR/hexstrike_server.py" --host "$HOST" --port "$PORT" $KILL_EXISTING $NO_AUTO_PORT
     else
+        # For gunicorn, we need to manually kill existing processes first
+        # This cleanup script runs in a separate Python subprocess before gunicorn starts
+        if [ -n "$KILL_EXISTING" ]; then
+            "$PYTHON_CMD" -c "
+import psutil
+for proc in psutil.process_iter(['pid', 'cmdline']):
+    try:
+        cmdline = proc.info.get('cmdline') or []
+        is_hexstrike = False
+        for i, arg in enumerate(cmdline):
+            if arg.lower().endswith('hexstrike_server.py'):
+                is_hexstrike = True
+                break
+            if 'gunicorn' in arg.lower() and i + 1 < len(cmdline):
+                if 'hexstrike_server:app' in cmdline[i + 1].lower():
+                    is_hexstrike = True
+                    break
+        if is_hexstrike:
+            proc.terminate()
+            print(f'Killed existing HexStrike process: PID {proc.info[\"pid\"]}')
+    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess, Exception):
+        pass  # Silently continue - best effort cleanup
+" 2>/dev/null || true
+            sleep 1
+        fi
         # Use gunicorn for production
         exec "$VENV_DIR/bin/gunicorn" \
             --bind "$HOST:$PORT" \
@@ -1077,7 +1109,7 @@ if [ "$PRODUCTION" = true ]; then
     fi
 else
     echo "🚀 Starting HexStrike AI Server on $HOST:$PORT..."
-    "$PYTHON_CMD" "$SCRIPT_DIR/hexstrike_server.py" --host "$HOST" --port "$PORT" $DEBUG $NO_AUTO_PORT
+    "$PYTHON_CMD" "$SCRIPT_DIR/hexstrike_server.py" --host "$HOST" --port "$PORT" $DEBUG $KILL_EXISTING $NO_AUTO_PORT
 fi
 EOFSERVER
     chmod +x "$SCRIPT_DIR/start-server.sh"

@@ -17938,13 +17938,69 @@ def is_port_available(port: int, host: str = "0.0.0.0") -> bool:
     except OSError:
         return False
 
-def find_available_port(start_port: int, max_attempts: int = 10, host: str = "0.0.0.0") -> int:
+# Number of ports to check when finding an available port
+PORT_SEARCH_RANGE = 50
+
+def find_available_port(start_port: int, max_attempts: int = PORT_SEARCH_RANGE, host: str = "0.0.0.0") -> int:
     """Find an available port starting from start_port"""
     for offset in range(max_attempts):
         port = start_port + offset
         if is_port_available(port, host):
             return port
     return -1
+
+
+def kill_existing_hexstrike_processes(current_pid: int = None) -> List[int]:
+    """Kill any existing HexStrike server processes to free up ports.
+    
+    Args:
+        current_pid: The current process PID to avoid killing ourselves
+    
+    Returns:
+        List of PIDs that were killed
+    """
+    killed_pids = []
+    current_pid = current_pid or os.getpid()
+    
+    try:
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                # Skip the current process
+                if proc.info['pid'] == current_pid:
+                    continue
+                
+                cmdline = proc.info.get('cmdline') or []
+                
+                # Only match Python processes running hexstrike_server.py specifically
+                # This avoids killing unrelated processes that might have 'hexstrike' in their args
+                is_hexstrike_server = False
+                for i, arg in enumerate(cmdline):
+                    arg_lower = arg.lower()
+                    # Check if this argument is hexstrike_server.py (full filename)
+                    if arg_lower.endswith('hexstrike_server.py'):
+                        is_hexstrike_server = True
+                        break
+                    # Also check for gunicorn running hexstrike_server:app
+                    if 'gunicorn' in arg_lower and i + 1 < len(cmdline):
+                        next_arg = cmdline[i + 1].lower()
+                        if 'hexstrike_server:app' in next_arg:
+                            is_hexstrike_server = True
+                            break
+                
+                if is_hexstrike_server:
+                    logger.info(f"🔪 Killing existing HexStrike process: PID {proc.info['pid']}")
+                    proc.terminate()
+                    try:
+                        proc.wait(timeout=5)
+                    except psutil.TimeoutExpired:
+                        proc.kill()
+                    killed_pids.append(proc.info['pid'])
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                continue
+    except Exception as e:
+        logger.warning(f"Error while cleaning up processes: {e}")
+    
+    return killed_pids
 
 def get_process_using_port(port: int) -> Optional[str]:
     """Try to identify what process is using a port"""
@@ -17974,6 +18030,7 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=API_PORT, help=f"Port for the API server (default: {API_PORT})")
     parser.add_argument("--host", type=str, default="0.0.0.0", help="Host to bind the server to (default: 0.0.0.0)")
     parser.add_argument("--no-auto-port", action="store_true", help="Disable automatic port selection when the specified port is in use (automatic port fallback is enabled by default)")
+    parser.add_argument("--kill-existing", action="store_true", help="Kill any existing HexStrike server processes before starting")
     # Keep --auto-port for backward compatibility but it's now a no-op since auto-port is the default
     parser.add_argument("--auto-port", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
@@ -17986,6 +18043,16 @@ if __name__ == "__main__":
         API_PORT = args.port
 
     SERVER_HOST = args.host
+
+    # Kill existing HexStrike processes if requested
+    if args.kill_existing:
+        killed = kill_existing_hexstrike_processes(current_pid=os.getpid())
+        if killed:
+            logger.info(f"✅ Killed {len(killed)} existing HexStrike process(es): {killed}")
+            # Give processes time to release ports
+            time.sleep(1)
+        else:
+            logger.info("ℹ️  No existing HexStrike processes found")
 
     # Automatic port fallback is now enabled by default
     auto_port_enabled = not args.no_auto_port
@@ -18006,8 +18073,11 @@ if __name__ == "__main__":
                 logger.info(f"🔄 Auto-switching to available port: {new_port}")
                 API_PORT = new_port
             else:
-                logger.error(f"❌ Could not find an available port after checking ports {API_PORT + 1} to {API_PORT + 11}")
-                logger.error("   Please free up a port or specify a different port with --port")
+                logger.error(f"❌ Could not find an available port after checking ports {API_PORT + 1} to {API_PORT + PORT_SEARCH_RANGE + 1}")
+                logger.error("   This may be due to existing HexStrike processes.")
+                logger.error("   Try running with --kill-existing to clean up stale processes:")
+                logger.error(f"      python hexstrike_server.py --kill-existing")
+                logger.error("   Or manually free up a port with --port")
                 sys.exit(1)
         else:
             logger.error(f"❌ Port {API_PORT} is already in use!")
@@ -18021,7 +18091,8 @@ if __name__ == "__main__":
                 logger.error(f"      sudo kill -9 <PID>       # Kill it")
             logger.error(f"   2. Use a different port:")
             logger.error(f"      ./start-server.sh --port=9000")
-            logger.error(f"   3. Remove --no-auto-port to enable automatic port selection")
+            logger.error(f"   3. Use --kill-existing to automatically clean up old processes")
+            logger.error(f"   4. Remove --no-auto-port to enable automatic port selection")
             logger.error("")
             sys.exit(1)
 
