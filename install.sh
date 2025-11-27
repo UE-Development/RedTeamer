@@ -1133,6 +1133,12 @@ done
 # Remove old port file before starting
 rm -f "$SCRIPT_DIR/.hexstrike_port" 2>/dev/null
 
+# Cache external IP if binding to 0.0.0.0 (only fetch once)
+CACHED_EXTERNAL_IP=""
+if [ "$SERVER_HOST" = "0.0.0.0" ]; then
+    CACHED_EXTERNAL_IP=$(get_external_ip)
+fi
+
 echo -e "${CYAN}"
 echo "╔═══════════════════════════════════════════════════════════════╗"
 echo "║           🚀 Starting HexStrike AI - All Services             ║"
@@ -1174,11 +1180,8 @@ if check_server_health; then
     
     # Determine display host - show external IP if binding to 0.0.0.0
     DISPLAY_HOST="$SERVER_HOST"
-    if [ "$SERVER_HOST" = "0.0.0.0" ]; then
-        EXTERNAL_IP=$(get_external_ip)
-        if [ -n "$EXTERNAL_IP" ]; then
-            DISPLAY_HOST="$EXTERNAL_IP"
-        fi
+    if [ "$SERVER_HOST" = "0.0.0.0" ] && [ -n "$CACHED_EXTERNAL_IP" ]; then
+        DISPLAY_HOST="$CACHED_EXTERNAL_IP"
     fi
     
     # Use actual port if different from requested (in case of auto-port switch)
@@ -1237,22 +1240,16 @@ if [ "$FRONTEND_AVAILABLE" = true ]; then
     fi
 fi
 
-# Determine display host for final summary
+# Determine display host for final summary (use cached external IP)
 DISPLAY_HOST="$SERVER_HOST"
-if [ "$SERVER_HOST" = "0.0.0.0" ]; then
-    EXTERNAL_IP=$(get_external_ip)
-    if [ -n "$EXTERNAL_IP" ]; then
-        DISPLAY_HOST="$EXTERNAL_IP"
-    fi
+if [ "$SERVER_HOST" = "0.0.0.0" ] && [ -n "$CACHED_EXTERNAL_IP" ]; then
+    DISPLAY_HOST="$CACHED_EXTERNAL_IP"
 fi
 
-# Determine frontend display host
+# Determine frontend display host (use cached external IP)
 FRONTEND_DISPLAY_HOST="localhost"
-if [ "$SERVER_HOST" = "0.0.0.0" ]; then
-    EXTERNAL_IP=$(get_external_ip)
-    if [ -n "$EXTERNAL_IP" ]; then
-        FRONTEND_DISPLAY_HOST="$EXTERNAL_IP"
-    fi
+if [ "$SERVER_HOST" = "0.0.0.0" ] && [ -n "$CACHED_EXTERNAL_IP" ]; then
+    FRONTEND_DISPLAY_HOST="$CACHED_EXTERNAL_IP"
 fi
 
 echo ""
