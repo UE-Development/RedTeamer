@@ -1077,8 +1077,22 @@ fi
 # Check Node.js version (Vite 7.x requires 20.19+ or 22.12+)
 NODE_VERSION=$(node --version | sed 's/v//')
 NODE_MAJOR=$(echo "$NODE_VERSION" | cut -d. -f1)
-if [ "$NODE_MAJOR" -lt 20 ]; then
-    echo -e "${RED}Error: Node.js version $NODE_VERSION is too old.${NC}"
+NODE_MINOR=$(echo "$NODE_VERSION" | cut -d. -f2)
+
+# Check version: need 20.19+, 21.x (any), or 22.12+
+VERSION_OK=false
+if [ "$NODE_MAJOR" -eq 20 ] && [ "$NODE_MINOR" -ge 19 ]; then
+    VERSION_OK=true
+elif [ "$NODE_MAJOR" -eq 21 ]; then
+    VERSION_OK=true
+elif [ "$NODE_MAJOR" -eq 22 ] && [ "$NODE_MINOR" -ge 12 ]; then
+    VERSION_OK=true
+elif [ "$NODE_MAJOR" -ge 23 ]; then
+    VERSION_OK=true
+fi
+
+if [ "$VERSION_OK" = false ]; then
+    echo -e "${RED}Error: Node.js version $NODE_VERSION is not compatible.${NC}"
     echo -e "${YELLOW}Vite 7.x requires Node.js 20.19+ or 22.12+${NC}"
     echo -e "${YELLOW}Please upgrade Node.js from: https://nodejs.org/${NC}"
     exit 1
@@ -1251,8 +1265,22 @@ if [ -f "$SCRIPT_DIR/start-frontend.sh" ]; then
         # Check Node.js version (Vite 7.x requires 20.19+ or 22.12+)
         NODE_VERSION=$(node --version | sed 's/v//')
         NODE_MAJOR=$(echo "$NODE_VERSION" | cut -d. -f1)
-        if [ "$NODE_MAJOR" -lt 20 ]; then
-            echo -e "${YELLOW}⚠️  Node.js version $NODE_VERSION is too old. Skipping frontend.${NC}"
+        NODE_MINOR=$(echo "$NODE_VERSION" | cut -d. -f2)
+        
+        # Check version: need 20.19+, 21.x (any), or 22.12+
+        VERSION_OK=false
+        if [ "$NODE_MAJOR" -eq 20 ] && [ "$NODE_MINOR" -ge 19 ]; then
+            VERSION_OK=true
+        elif [ "$NODE_MAJOR" -eq 21 ]; then
+            VERSION_OK=true
+        elif [ "$NODE_MAJOR" -eq 22 ] && [ "$NODE_MINOR" -ge 12 ]; then
+            VERSION_OK=true
+        elif [ "$NODE_MAJOR" -ge 23 ]; then
+            VERSION_OK=true
+        fi
+        
+        if [ "$VERSION_OK" = false ]; then
+            echo -e "${YELLOW}⚠️  Node.js version $NODE_VERSION is not compatible. Skipping frontend.${NC}"
             echo -e "${YELLOW}   Vite 7.x requires Node.js 20.19+ or 22.12+${NC}"
             FRONTEND_SKIP_REASON="nodejs-version"
         elif [ -d "$SCRIPT_DIR/frontend/node_modules" ]; then
