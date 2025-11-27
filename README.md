@@ -801,7 +801,26 @@ AI Agent: "Thank you for clarifying ownership and intent. To proceed with a pene
 
 ### Common Issues
 
-1. **MCP Connection Failed**:
+1. **SSL Error / Cannot Connect via HTTPS**:
+   
+   ⚠️ **The HexStrike server runs on HTTP, not HTTPS!**
+   
+   If you see an error like `SSL_ERROR_RX_RECORD_TOO_LONG` or similar SSL errors, you're trying to connect via HTTPS to an HTTP server.
+   
+   **Solution:** Use `http://` instead of `https://` when accessing the server:
+   ```bash
+   # ✅ Correct - use HTTP
+   http://localhost:8889
+   http://your-server-ip:8889
+   
+   # ❌ Wrong - HTTPS will not work without additional setup
+   https://localhost:8889
+   https://your-server-ip:8889
+   ```
+   
+   If you need HTTPS for production, see the [Production Security](#production-security) section for setting up a reverse proxy with SSL.
+
+2. **MCP Connection Failed**:
    ```bash
    # Check if server is running
    netstat -tlnp | grep 8889
@@ -810,7 +829,7 @@ AI Agent: "Thank you for clarifying ownership and intent. To proceed with a pene
    python3 hexstrike_server.py
    ```
 
-2. **Security Tools Not Found**:
+3. **Security Tools Not Found**:
    ```bash
    # Check tool availability
    which nmap gobuster nuclei
@@ -818,11 +837,22 @@ AI Agent: "Thank you for clarifying ownership and intent. To proceed with a pene
    # Install missing tools from their official sources
    ```
 
-3. **AI Agent Cannot Connect**:
+4. **AI Agent Cannot Connect**:
    ```bash
    # Verify MCP configuration paths
    # Check server logs for connection attempts
    python3 hexstrike_mcp.py --debug
+   ```
+
+5. **Frontend Dependencies Not Installed**:
+   
+   If you see `Error: Frontend dependencies not installed`:
+   ```bash
+   # Install Node.js 18+ first, then:
+   cd frontend
+   npm install
+   cd ..
+   ./start-frontend.sh
    ```
 
 ### Debug Mode
@@ -847,25 +877,47 @@ python3 hexstrike_mcp.py --debug
 ### Runtime Security
 
 **Default Behavior:**
+- Server runs on **HTTP** (not HTTPS) - see [Production Security](#production-security) for HTTPS setup
 - Server binds to `127.0.0.1` by default (local access only)
 - Warning displayed when using `--host=0.0.0.0` (public exposure)
 
-**Production Security:**
+### Production Security
+
 ```bash
 # Start with local-only access (recommended)
 ./start-server.sh
 
 # If you need remote access, use with caution:
 ./start-server.sh --host=0.0.0.0
-# ⚠️ WARNING: This exposes the server publicly!
+# ⚠️ WARNING: This exposes the server publicly via HTTP!
 # Consider using a reverse proxy (nginx) with authentication
 ```
 
-**Recommended Production Setup:**
+**Recommended Production Setup with HTTPS:**
+
+The HexStrike server runs on HTTP by default. For HTTPS support in production, use a reverse proxy:
+
 1. Use gunicorn behind a reverse proxy (nginx/traefik)
-2. Enable HTTPS via the reverse proxy
+2. Configure SSL/TLS certificates on the reverse proxy
 3. Implement authentication at the proxy level
 4. Restrict access via firewall rules
+
+**Example nginx configuration for HTTPS:**
+```nginx
+server {
+    listen 443 ssl;
+    server_name your-domain.com;
+    
+    ssl_certificate /path/to/cert.pem;
+    ssl_certificate_key /path/to/key.pem;
+    
+    location / {
+        proxy_pass http://127.0.0.1:8889;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
 
 ### Legal & Ethical Use
 

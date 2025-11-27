@@ -1273,6 +1273,8 @@ elif [ -n "$FRONTEND_SKIP_REASON" ]; then
     esac
 fi
 echo ""
+echo -e "  ${YELLOW}⚠️  Note: Use HTTP (not HTTPS) to access the server${NC}"
+echo ""
 echo -e "  Press ${YELLOW}Ctrl+C${NC} to stop all services"
 echo -e "${GREEN}═══════════════════════════════════════════════════════════${NC}"
 
