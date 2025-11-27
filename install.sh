@@ -148,6 +148,33 @@ check_python_version() {
     return 1
 }
 
+# Check if Node.js version is compatible with Vite 7.x
+# Returns 0 if compatible, 1 if not compatible
+# Sets NODE_VERSION_CHECK_RESULT to "ok" or "incompatible"
+# Vite 7.x requires Node.js 20.19+, 21.x (any), 22.12+, or 23+
+check_nodejs_version_compatible() {
+    local version="$1"
+    local major=$(echo "$version" | cut -d. -f1)
+    local minor=$(echo "$version" | cut -d. -f2)
+    
+    if [ "$major" -eq 20 ] && [ "$minor" -ge 19 ]; then
+        NODE_VERSION_CHECK_RESULT="ok"
+        return 0
+    elif [ "$major" -eq 21 ]; then
+        NODE_VERSION_CHECK_RESULT="ok"
+        return 0
+    elif [ "$major" -eq 22 ] && [ "$minor" -ge 12 ]; then
+        NODE_VERSION_CHECK_RESULT="ok"
+        return 0
+    elif [ "$major" -ge 23 ]; then
+        NODE_VERSION_CHECK_RESULT="ok"
+        return 0
+    fi
+    
+    NODE_VERSION_CHECK_RESULT="incompatible"
+    return 1
+}
+
 # ============================================================================
 # OS DETECTION
 # ============================================================================
@@ -428,22 +455,8 @@ check_frontend_prerequisites() {
     if command -v node &> /dev/null && command -v npm &> /dev/null; then
         NODE_VERSION=$(node --version | sed 's/v//')
         NPM_VERSION=$(npm --version)
-        NODE_MAJOR=$(echo "$NODE_VERSION" | cut -d. -f1)
-        NODE_MINOR=$(echo "$NODE_VERSION" | cut -d. -f2)
         
-        # Check version: need 20.19+, 21.x (any), or 22.12+
-        VERSION_OK=false
-        if [ "$NODE_MAJOR" -eq 20 ] && [ "$NODE_MINOR" -ge 19 ]; then
-            VERSION_OK=true
-        elif [ "$NODE_MAJOR" -eq 21 ]; then
-            VERSION_OK=true
-        elif [ "$NODE_MAJOR" -eq 22 ] && [ "$NODE_MINOR" -ge 12 ]; then
-            VERSION_OK=true
-        elif [ "$NODE_MAJOR" -ge 23 ]; then
-            VERSION_OK=true
-        fi
-        
-        if [ "$VERSION_OK" = true ]; then
+        if check_nodejs_version_compatible "$NODE_VERSION"; then
             log_success "Node.js v$NODE_VERSION and npm $NPM_VERSION found"
             NODE_AVAILABLE=true
         else
@@ -528,27 +541,14 @@ install_nodejs() {
     if command -v node &> /dev/null && command -v npm &> /dev/null; then
         NODE_VERSION=$(node --version | sed 's/v//')
         NPM_VERSION=$(npm --version)
-        NODE_MAJOR=$(echo "$NODE_VERSION" | cut -d. -f1)
-        NODE_MINOR=$(echo "$NODE_VERSION" | cut -d. -f2)
         
-        # Check version: need 20.19+, 21.x (any), or 22.12+
-        VERSION_OK=false
-        if [ "$NODE_MAJOR" -eq 20 ] && [ "$NODE_MINOR" -ge 19 ]; then
-            VERSION_OK=true
-        elif [ "$NODE_MAJOR" -eq 21 ]; then
-            VERSION_OK=true
-        elif [ "$NODE_MAJOR" -eq 22 ] && [ "$NODE_MINOR" -ge 12 ]; then
-            VERSION_OK=true
-        elif [ "$NODE_MAJOR" -ge 23 ]; then
-            VERSION_OK=true
-        fi
-        
-        if [ "$VERSION_OK" = true ]; then
+        if check_nodejs_version_compatible "$NODE_VERSION"; then
             log_success "Node.js v$NODE_VERSION and npm $NPM_VERSION installed successfully"
             NODE_AVAILABLE=true
         else
             log_warning "Installed Node.js version $NODE_VERSION is not compatible with Vite 7.x (requires 20.19+ or 22.12+)"
-            NODE_AVAILABLE=true  # Try anyway
+            log_info "Frontend installation will be skipped. Please install a compatible Node.js version."
+            NODE_AVAILABLE=false
         fi
     else
         log_warning "Node.js installation could not be verified. Frontend may not be available."
