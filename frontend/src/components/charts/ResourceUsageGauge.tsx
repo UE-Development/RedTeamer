@@ -1,10 +1,12 @@
 /**
  * Resource Usage Gauge
  * Displays system resource usage as a radial gauge
+ * Now supports live data from the backend with visual indicator
  */
 
-import { Box, Typography, Paper } from '@mui/material';
+import { Box, Typography, Paper, Chip } from '@mui/material';
 import { RadialBarChart, RadialBar, ResponsiveContainer, PolarAngleAxis } from 'recharts';
+import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 
 interface ResourceData {
   name: string;
@@ -18,14 +20,20 @@ interface ResourceUsageGaugeProps {
   disk?: number;
   title?: string;
   height?: number;
+  /** Whether the data is from a live source */
+  isLive?: boolean;
+  /** Last update timestamp for live data */
+  lastUpdated?: Date;
 }
 
 const ResourceUsageGauge = ({
-  cpu = 45,
-  memory = 67,
-  disk = 32,
+  cpu = 0,
+  memory = 0,
+  disk = 0,
   title = 'System Resources',
   height = 250,
+  isLive = false,
+  lastUpdated,
 }: ResourceUsageGaugeProps) => {
   const getColor = (value: number) => {
     if (value >= 90) return '#b71c1c'; // Critical
@@ -33,17 +41,61 @@ const ResourceUsageGauge = ({
     return '#00ff41'; // Good
   };
 
+  // Round values to 1 decimal place for display
+  const roundedCpu = Math.round(cpu * 10) / 10;
+  const roundedMemory = Math.round(memory * 10) / 10;
+  const roundedDisk = Math.round(disk * 10) / 10;
+
   const data: ResourceData[] = [
-    { name: 'Disk', value: disk, fill: getColor(disk) },
-    { name: 'Memory', value: memory, fill: getColor(memory) },
-    { name: 'CPU', value: cpu, fill: getColor(cpu) },
+    { name: 'Disk', value: roundedDisk, fill: getColor(roundedDisk) },
+    { name: 'Memory', value: roundedMemory, fill: getColor(roundedMemory) },
+    { name: 'CPU', value: roundedCpu, fill: getColor(roundedCpu) },
   ];
+
+  // Format the last updated time
+  const getLastUpdatedText = () => {
+    if (!lastUpdated) return '';
+    const now = new Date();
+    const diffSeconds = Math.floor((now.getTime() - lastUpdated.getTime()) / 1000);
+    if (diffSeconds < 5) return 'just now';
+    if (diffSeconds < 60) return `${diffSeconds}s ago`;
+    return lastUpdated.toLocaleTimeString();
+  };
 
   return (
     <Paper sx={{ p: 2, height: height + 60 }}>
-      <Typography variant="h6" sx={{ mb: 1, fontWeight: 600 }}>
-        💻 {title}
-      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+          💻 {title}
+        </Typography>
+        {isLive && (
+          <Chip
+            size="small"
+            icon={
+              <FiberManualRecordIcon 
+                sx={{ 
+                  fontSize: 10, 
+                  color: '#00ff41 !important',
+                  animation: 'pulse 1.5s ease-in-out infinite',
+                  '@keyframes pulse': {
+                    '0%, 100%': { opacity: 1 },
+                    '50%': { opacity: 0.4 },
+                  },
+                }} 
+              />
+            }
+            label={lastUpdated ? `Live • ${getLastUpdatedText()}` : 'Live'}
+            sx={{
+              bgcolor: 'rgba(0, 255, 65, 0.1)',
+              color: '#00ff41',
+              border: '1px solid rgba(0, 255, 65, 0.3)',
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: '0.7rem',
+              height: 24,
+            }}
+          />
+        )}
+      </Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
         <Box sx={{ flex: 1 }}>
           <ResponsiveContainer width="100%" height={height - 20}>
@@ -73,7 +125,7 @@ const ResourceUsageGauge = ({
           </ResponsiveContainer>
         </Box>
         <Box sx={{ minWidth: 100 }}>
-          {data.reverse().map((item, index) => (
+          {[...data].reverse().map((item, index) => (
             <Box
               key={index}
               sx={{
@@ -89,6 +141,7 @@ const ResourceUsageGauge = ({
                   height: 12,
                   borderRadius: '50%',
                   bgcolor: item.fill,
+                  boxShadow: isLive ? `0 0 8px ${item.fill}40` : 'none',
                 }}
               />
               <Typography variant="body2" color="text.secondary">
@@ -103,7 +156,7 @@ const ResourceUsageGauge = ({
                   fontFamily: "'JetBrains Mono', monospace",
                 }}
               >
-                {item.value}%
+                {item.value.toFixed(1)}%
               </Typography>
             </Box>
           ))}
