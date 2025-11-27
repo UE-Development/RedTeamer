@@ -17615,7 +17615,9 @@ if __name__ == "__main__":
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
     parser.add_argument("--port", type=int, default=API_PORT, help=f"Port for the API server (default: {API_PORT})")
     parser.add_argument("--host", type=str, default="0.0.0.0", help="Host to bind the server to (default: 0.0.0.0)")
-    parser.add_argument("--auto-port", action="store_true", help="Automatically find an available port if the specified port is in use")
+    parser.add_argument("--no-auto-port", action="store_true", help="Disable automatic port selection when the specified port is in use (automatic port fallback is enabled by default)")
+    # Keep --auto-port for backward compatibility but it's now a no-op since auto-port is the default
+    parser.add_argument("--auto-port", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
 
     if args.debug:
@@ -17627,6 +17629,9 @@ if __name__ == "__main__":
 
     SERVER_HOST = args.host
 
+    # Automatic port fallback is now enabled by default
+    auto_port_enabled = not args.no_auto_port
+
     # Check if the requested port is available
     original_port = API_PORT
     if not is_port_available(API_PORT, SERVER_HOST):
@@ -17636,8 +17641,8 @@ if __name__ == "__main__":
         else:
             logger.warning(f"⚠️  Port {API_PORT} is already in use")
 
-        if args.auto_port:
-            # Try to find an available port
+        if auto_port_enabled:
+            # Automatically find an available port (default behavior)
             new_port = find_available_port(API_PORT + 1)
             if new_port > 0:
                 logger.info(f"🔄 Auto-switching to available port: {new_port}")
@@ -17658,8 +17663,7 @@ if __name__ == "__main__":
                 logger.error(f"      sudo kill -9 <PID>       # Kill it")
             logger.error(f"   2. Use a different port:")
             logger.error(f"      ./start-server.sh --port=9000")
-            logger.error(f"   3. Use automatic port selection:")
-            logger.error(f"      python hexstrike_server.py --auto-port")
+            logger.error(f"   3. Remove --no-auto-port to enable automatic port selection")
             logger.error("")
             sys.exit(1)
 

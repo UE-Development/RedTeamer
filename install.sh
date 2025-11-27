@@ -905,7 +905,9 @@ PORT="8889"
 HOST="127.0.0.1"
 DEBUG=""
 PRODUCTION=false
-AUTO_PORT="--auto-port"  # Enable automatic port fallback by default
+# Automatic port fallback is now the default in hexstrike_server.py
+# Use --no-auto-port to disable it
+NO_AUTO_PORT=""
 
 for arg in "$@"; do
     case $arg in
@@ -922,7 +924,10 @@ for arg in "$@"; do
             PRODUCTION=true
             ;;
         --no-auto-port)
-            AUTO_PORT=""  # Disable automatic port fallback
+            NO_AUTO_PORT="--no-auto-port"  # Disable automatic port fallback
+            ;;
+        --auto-port)
+            # Kept for backward compatibility - now a no-op since auto-port is the default
             ;;
     esac
 done
@@ -940,7 +945,7 @@ if [ "$PRODUCTION" = true ]; then
     # Check if gunicorn is available
     if ! "$PYTHON_CMD" -c "import gunicorn" &> /dev/null; then
         echo -e "${YELLOW}gunicorn not found, using built-in server${NC}"
-        "$PYTHON_CMD" "$SCRIPT_DIR/hexstrike_server.py" --host "$HOST" --port "$PORT" $AUTO_PORT
+        "$PYTHON_CMD" "$SCRIPT_DIR/hexstrike_server.py" --host "$HOST" --port "$PORT" $NO_AUTO_PORT
     else
         # Use gunicorn for production
         exec "$VENV_DIR/bin/gunicorn" \
@@ -953,7 +958,7 @@ if [ "$PRODUCTION" = true ]; then
     fi
 else
     echo "🚀 Starting HexStrike AI Server on $HOST:$PORT..."
-    "$PYTHON_CMD" "$SCRIPT_DIR/hexstrike_server.py" --host "$HOST" --port "$PORT" $DEBUG $AUTO_PORT
+    "$PYTHON_CMD" "$SCRIPT_DIR/hexstrike_server.py" --host "$HOST" --port "$PORT" $DEBUG $NO_AUTO_PORT
 fi
 EOFSERVER
     chmod +x "$SCRIPT_DIR/start-server.sh"
