@@ -32,6 +32,7 @@ import ErrorIcon from '@mui/icons-material/Error';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import AddIcon from '@mui/icons-material/Add';
 import { ScanCreationWizard } from '../components/scans';
+import { useAppSelector } from '../store';
 
 interface Scan {
   id: string;
@@ -54,7 +55,7 @@ interface ScanPhase {
   details?: string;
 }
 
-// Mock scan data
+// Mock scan data for demo mode
 const MOCK_SCANS: Scan[] = [
   {
     id: '1',
@@ -111,14 +112,26 @@ const MOCK_SCANS: Scan[] = [
 ];
 
 const ScansPage = () => {
-  const [scans, setScans] = useState<Scan[]>(MOCK_SCANS);
-  const [selectedScan, setSelectedScan] = useState<Scan | null>(scans[0]);
+  const mockDataEnabled = useAppSelector((state) => state.settings.developer.mockDataEnabled);
+  const [scans, setScans] = useState<Scan[]>([]);
+  const [selectedScan, setSelectedScan] = useState<Scan | null>(null);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
     severity: 'success',
   });
+
+  // Initialize scans based on mock data setting
+  useEffect(() => {
+    if (mockDataEnabled) {
+      setScans(MOCK_SCANS);
+      setSelectedScan(MOCK_SCANS[0]);
+    } else {
+      setScans([]);
+      setSelectedScan(null);
+    }
+  }, [mockDataEnabled]);
 
   // Handle new scan creation
   const handleCreateScan = (scanConfig: { target: string; scanType: string; selectedTools: string[] }) => {

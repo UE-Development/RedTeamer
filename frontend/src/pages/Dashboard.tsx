@@ -37,39 +37,74 @@ import {
   VulnerabilityHeatMap,
 } from '../components/charts';
 
+// Mock scan data for demo mode
+const MOCK_ACTIVE_SCANS = [
+  { name: 'example.com', progress: 78, status: 'running' },
+  { name: 'testsite.org', progress: 100, status: 'completed' },
+  { name: 'target.net', progress: 25, status: 'running' },
+];
+
+// Mock critical vulnerabilities for demo mode
+const MOCK_CRITICAL_VULNS = [
+  { id: 1, title: 'SQL Injection in example.com/login', severity: 'critical', cvss: 9.8 },
+  { id: 2, title: 'XSS vulnerability in testsite.org/search', severity: 'high', cvss: 7.5 },
+  { id: 3, title: 'SSRF in target.net/api/fetch', severity: 'high', cvss: 8.1 },
+];
+
 const Dashboard = () => {
   const dispatch = useAppDispatch();
   const metrics = useAppSelector((state) => state.dashboard.metrics);
+  const mockDataEnabled = useAppSelector((state) => state.settings.developer.mockDataEnabled);
   const [analyticsTab, setAnalyticsTab] = useState(0);
   const [lastUpdated, setLastUpdated] = useState(new Date());
 
   useEffect(() => {
-    // Fetch dashboard metrics
-    // For now, using mock data
-    dispatch(
-      setMetrics({
-        activeScans: 3,
-        toolsUsed: 45,
-        vulnerabilitiesFound: 12,
-        projectsActive: 5,
-        agentsOnline: 8,
-      })
-    );
-  }, [dispatch]);
+    if (mockDataEnabled) {
+      // Use mock data for demonstration
+      dispatch(
+        setMetrics({
+          activeScans: 3,
+          toolsUsed: 45,
+          vulnerabilitiesFound: 12,
+          projectsActive: 5,
+          agentsOnline: 8,
+        })
+      );
+    } else {
+      // Reset to empty state when mock data is disabled
+      dispatch(
+        setMetrics({
+          activeScans: 0,
+          toolsUsed: 0,
+          vulnerabilitiesFound: 0,
+          projectsActive: 0,
+          agentsOnline: 0,
+        })
+      );
+    }
+  }, [dispatch, mockDataEnabled]);
 
-  // Simulate real-time data refresh
+  // Simulate real-time data refresh (only in demo mode)
   const handleRefresh = () => {
-    dispatch(
-      setMetrics({
-        activeScans: Math.floor(Math.random() * 5) + 1,
-        toolsUsed: Math.floor(Math.random() * 50) + 30,
-        vulnerabilitiesFound: Math.floor(Math.random() * 20) + 5,
-        projectsActive: Math.floor(Math.random() * 10) + 3,
-        agentsOnline: Math.floor(Math.random() * 12) + 4,
-      })
-    );
+    if (mockDataEnabled) {
+      dispatch(
+        setMetrics({
+          activeScans: Math.floor(Math.random() * 5) + 1,
+          toolsUsed: Math.floor(Math.random() * 50) + 30,
+          vulnerabilitiesFound: Math.floor(Math.random() * 20) + 5,
+          projectsActive: Math.floor(Math.random() * 10) + 3,
+          agentsOnline: Math.floor(Math.random() * 12) + 4,
+        })
+      );
+    }
     setLastUpdated(new Date());
   };
+
+  // Get active scans based on mock data setting
+  const activeScans = mockDataEnabled ? MOCK_ACTIVE_SCANS : [];
+
+  // Get critical vulnerabilities based on mock data setting
+  const criticalVulns = mockDataEnabled ? MOCK_CRITICAL_VULNS : [];
 
   // Metric card configuration with trends
   const metricCards = [
@@ -105,20 +140,6 @@ const Dashboard = () => {
       trend: 0,
       trendLabel: 'no change',
     },
-  ];
-
-  // Mock scan data for demo
-  const activeScans = [
-    { name: 'example.com', progress: 78, status: 'running' },
-    { name: 'testsite.org', progress: 100, status: 'completed' },
-    { name: 'target.net', progress: 25, status: 'running' },
-  ];
-
-  // Critical vulnerabilities for alert section
-  const criticalVulns = [
-    { id: 1, title: 'SQL Injection in example.com/login', severity: 'critical', cvss: 9.8 },
-    { id: 2, title: 'XSS vulnerability in testsite.org/search', severity: 'high', cvss: 7.5 },
-    { id: 3, title: 'SSRF in target.net/api/fetch', severity: 'high', cvss: 8.1 },
   ];
 
   return (
@@ -209,28 +230,28 @@ const Dashboard = () => {
         {analyticsTab === 0 && (
           <Grid container spacing={3}>
             <Grid size={{ xs: 12, lg: 8 }}>
-              <VulnerabilityTrendChart height={280} />
+              <VulnerabilityTrendChart height={280} data={mockDataEnabled ? undefined : []} />
             </Grid>
             <Grid size={{ xs: 12, lg: 4 }}>
-              <ResourceUsageGauge cpu={45} memory={67} disk={32} height={220} />
+              <ResourceUsageGauge cpu={mockDataEnabled ? 45 : 0} memory={mockDataEnabled ? 67 : 0} disk={mockDataEnabled ? 32 : 0} height={220} />
             </Grid>
           </Grid>
         )}
         {analyticsTab === 1 && (
           <Grid container spacing={3}>
             <Grid size={{ xs: 12, md: 6 }}>
-              <SeverityPieChart height={280} />
+              <SeverityPieChart height={280} data={mockDataEnabled ? undefined : []} />
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
-              <ScanActivityChart height={280} />
+              <ScanActivityChart height={280} data={mockDataEnabled ? undefined : []} />
             </Grid>
           </Grid>
         )}
         {analyticsTab === 2 && (
-          <ToolUsageChart height={350} />
+          <ToolUsageChart height={350} data={mockDataEnabled ? undefined : []} />
         )}
         {analyticsTab === 3 && (
-          <VulnerabilityHeatMap />
+          <VulnerabilityHeatMap data={mockDataEnabled ? undefined : []} />
         )}
       </Box>
 

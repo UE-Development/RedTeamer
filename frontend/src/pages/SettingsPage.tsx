@@ -46,6 +46,7 @@ import SmartToyIcon from '@mui/icons-material/SmartToy';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import StarIcon from '@mui/icons-material/Star';
+import CodeIcon from '@mui/icons-material/Code';
 import { useAppSelector, useAppDispatch } from '../store';
 import {
   setMCPServerSettings,
@@ -54,6 +55,7 @@ import {
   setAPISettings,
   setAIProviderSettings,
   setNotificationSettings,
+  setDeveloperSettings,
   saveSettings,
   resetSettings,
 } from '../store/slices/settingsSlice';
@@ -772,6 +774,68 @@ const SettingsPage = () => {
                   label="Notify on Vulnerability Found"
                 />
               </Grid>
+            </Grid>
+          </Paper>
+        </Grid>
+
+        {/* Developer Settings */}
+        <Grid size={12}>
+          <Paper sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <CodeIcon sx={{ mr: 1, color: 'info.main' }} />
+              <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                Developer Settings
+              </Typography>
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Configure developer and demonstration options.
+            </Typography>
+
+            <Grid container spacing={3}>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <Card
+                  sx={{
+                    bgcolor: settings.developer.mockDataEnabled ? 'info.dark' : 'action.disabledBackground',
+                    border: settings.developer.mockDataEnabled ? '2px solid' : '1px solid',
+                    borderColor: settings.developer.mockDataEnabled ? 'info.main' : 'divider',
+                    transition: 'all 0.3s ease',
+                  }}
+                >
+                  <CardContent>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Box>
+                        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                          Demo Mode
+                        </Typography>
+                        <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                          {settings.developer.mockDataEnabled
+                            ? 'Showing mock data for demonstration'
+                            : 'Using real data from backend'}
+                        </Typography>
+                      </Box>
+                      <Switch
+                        checked={settings.developer.mockDataEnabled}
+                        onChange={(e) => dispatch(setDeveloperSettings({ mockDataEnabled: e.target.checked }))}
+                        color="info"
+                      />
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              {settings.developer.mockDataEnabled && (
+                <Grid size={12}>
+                  <Alert severity="info" icon={<CodeIcon />}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                      Demo Mode Active
+                    </Typography>
+                    <Typography variant="body2">
+                      Mock data is being displayed for demonstration and showcase purposes. 
+                      Disable this setting to use real data from the backend server.
+                    </Typography>
+                  </Alert>
+                </Grid>
+              )}
             </Grid>
           </Paper>
         </Grid>

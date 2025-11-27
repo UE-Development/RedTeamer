@@ -3,7 +3,7 @@
  * Generate, preview, and download comprehensive security reports
  */
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -48,6 +48,7 @@ import SecurityIcon from '@mui/icons-material/Security';
 import BusinessIcon from '@mui/icons-material/Business';
 import StorageIcon from '@mui/icons-material/Storage';
 import GavelIcon from '@mui/icons-material/Gavel';
+import { useAppSelector } from '../store';
 import type { ReportType, ReportFormat } from '../types';
 
 interface ReportConfig {
@@ -133,7 +134,8 @@ const MOCK_TARGETS = [
 ];
 
 const ReportsPage = () => {
-  const [reports, setReports] = useState<GeneratedReport[]>(MOCK_REPORTS);
+  const mockDataEnabled = useAppSelector((state) => state.settings.developer.mockDataEnabled);
+  const [reports, setReports] = useState<GeneratedReport[]>([]);
   const [generating, setGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
   const [selectedReport, setSelectedReport] = useState<GeneratedReport | null>(null);
@@ -151,6 +153,16 @@ const ReportsPage = () => {
     },
     formats: ['pdf', 'html'],
   });
+
+  // Initialize reports based on mock data setting
+  useEffect(() => {
+    if (mockDataEnabled) {
+      setReports(MOCK_REPORTS);
+    } else {
+      setReports([]);
+      setSelectedReport(null);
+    }
+  }, [mockDataEnabled]);
 
   // Ref to store interval ID for cleanup
   const generationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);

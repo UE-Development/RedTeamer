@@ -40,7 +40,7 @@ const TABS = {
   METRICS: 4,
 } as const;
 
-// Mock agents data based on FEATURES.md
+// Mock agents data for demo mode
 const mockAgents: Agent[] = [
   {
     id: '1',
@@ -226,6 +226,7 @@ interface AgentChat {
 const AgentsPage = () => {
   const dispatch = useAppDispatch();
   const { agents, selectedAgent, messages, loading } = useAppSelector((state) => state.agents);
+  const mockDataEnabled = useAppSelector((state) => state.settings.developer.mockDataEnabled);
   const [activeTab, setActiveTab] = useState(0);
   const [multiAgentChats, setMultiAgentChats] = useState<AgentChat[]>([]);
   const [workflow, setWorkflow] = useState<CollaborationWorkflow | null>(null);
@@ -233,19 +234,27 @@ const AgentsPage = () => {
   const workflowInitializedRef = useRef(false);
 
   useEffect(() => {
-    // Initialize with mock agents
-    dispatch(setAgents(mockAgents));
-  }, [dispatch]);
+    // Initialize agents based on mock data setting
+    if (mockDataEnabled) {
+      dispatch(setAgents(mockAgents));
+    } else {
+      dispatch(setAgents([]));
+      dispatch(setSelectedAgent(null));
+    }
+  }, [dispatch, mockDataEnabled]);
 
   // Initialize workflow when agents are loaded - using ref to track initialization
   // This is the correct pattern for one-time initialization based on derived data
   useEffect(() => {
-    if (agents.length > 0 && !workflowInitializedRef.current) {
+    if (mockDataEnabled && agents.length > 0 && !workflowInitializedRef.current) {
       workflowInitializedRef.current = true;
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setWorkflow(createMockWorkflow(agents));
+    } else if (!mockDataEnabled) {
+      workflowInitializedRef.current = false;
+      setWorkflow(null);
     }
-  }, [agents]);
+  }, [agents, mockDataEnabled]);
 
   const handleSelectAgent = useCallback(
     (agent: Agent) => {

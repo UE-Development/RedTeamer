@@ -3,7 +3,7 @@
  * Organize and manage security assessment projects
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -40,6 +40,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import DeleteIcon from '@mui/icons-material/Delete';
 import GroupIcon from '@mui/icons-material/Group';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import { useAppSelector } from '../store';
 import type { ProjectStatus, TeamMember } from '../types';
 
 interface Project {
@@ -146,7 +147,8 @@ const MOCK_PROJECTS: Project[] = [
 ];
 
 const ProjectsPage = () => {
-  const [projects, setProjects] = useState<Project[]>(MOCK_PROJECTS);
+  const mockDataEnabled = useAppSelector((state) => state.settings.developer.mockDataEnabled);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [tabValue, setTabValue] = useState(0);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -155,6 +157,15 @@ const ProjectsPage = () => {
     description: '',
     client: '',
   });
+
+  // Initialize projects based on mock data setting
+  useEffect(() => {
+    if (mockDataEnabled) {
+      setProjects(MOCK_PROJECTS);
+    } else {
+      setProjects([]);
+    }
+  }, [mockDataEnabled]);
 
   const filterProjects = (status: ProjectStatus | 'all') => {
     let filtered = projects.filter((p) =>

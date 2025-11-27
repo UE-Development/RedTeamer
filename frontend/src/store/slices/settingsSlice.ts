@@ -41,12 +41,18 @@ export interface NotificationSettings {
   criticalOnlyNotify: boolean;
 }
 
+export interface DeveloperSettings {
+  mockDataEnabled: boolean;
+}
+
+
 export interface SettingsState {
   mcpServer: MCPServerSettings;
   theme: ThemeSettings;
   api: APISettings;
   aiProvider: AIProviderSettings;
   notifications: NotificationSettings;
+  developer: DeveloperSettings;
   loading: boolean;
   error: string | null;
   lastSaved: string | null;
@@ -85,6 +91,9 @@ const initialState: SettingsState = {
     vulnerabilityFoundNotify: true,
     criticalOnlyNotify: false,
   },
+  developer: {
+    mockDataEnabled: false,
+  },
   loading: false,
   error: null,
   lastSaved: null,
@@ -118,6 +127,9 @@ const settingsSlice = createSlice({
     setNotificationSettings: (state, action: PayloadAction<Partial<NotificationSettings>>) => {
       state.notifications = { ...state.notifications, ...action.payload };
     },
+    setDeveloperSettings: (state, action: PayloadAction<Partial<DeveloperSettings>>) => {
+      state.developer = { ...state.developer, ...action.payload };
+    },
     setLoading: (state, action: PayloadAction<boolean>) => {
       state.loading = action.payload;
     },
@@ -139,6 +151,7 @@ export const {
   setAPISettings,
   setAIProviderSettings,
   setNotificationSettings,
+  setDeveloperSettings,
   setLoading,
   setError,
   saveSettings,
