@@ -666,11 +666,25 @@ install_security_tools() {
                     pip install "$temp_dir" && log_success "Installed $tool_name" || log_warning "Failed to install $tool_name"
                 elif [ -f "$temp_dir/requirements.txt" ]; then
                     # Install requirements and copy the main script
-                    pip install -r "$temp_dir/requirements.txt" || log_warning "Failed to install $tool_name requirements"
-                    # For enum4linux-ng, the main script is enum4linux-ng.py
-                    if [ -f "$temp_dir/${tool_name}.py" ]; then
-                        chmod +x "$temp_dir/${tool_name}.py"
-                        sudo cp "$temp_dir/${tool_name}.py" /usr/local/bin/"$tool_name" && log_success "Installed $tool_name" || log_warning "Failed to copy $tool_name to /usr/local/bin"
+                    if pip install -r "$temp_dir/requirements.txt"; then
+                        # Look for executable script: try common patterns
+                        local script_found=false
+                        for script_pattern in "${tool_name}.py" "${tool_name}" "bin/${tool_name}" "bin/${tool_name}.py"; do
+                            if [ -f "$temp_dir/$script_pattern" ]; then
+                                chmod +x "$temp_dir/$script_pattern"
+                                sudo cp "$temp_dir/$script_pattern" /usr/local/bin/"$tool_name" && {
+                                    log_success "Installed $tool_name"
+                                    script_found=true
+                                    break
+                                }
+                            fi
+                        done
+                        
+                        if [ "$script_found" = false ]; then
+                            log_warning "Could not find executable script for $tool_name"
+                        fi
+                    else
+                        log_warning "Failed to install $tool_name requirements, skipping"
                     fi
                 else
                     log_warning "Could not find installation method for $tool_name"
