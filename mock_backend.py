@@ -4,16 +4,63 @@ Mock Backend Server for HexStrike AI Frontend Development
 Provides basic API endpoints for testing frontend functionality
 """
 
+import argparse
+import socket
+import sys
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import logging
 from datetime import datetime
+from typing import Optional
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for frontend development
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Default API configuration
+DEFAULT_PORT = 8889
+DEFAULT_HOST = "0.0.0.0"
+
+
+def is_port_available(port: int, host: str = "0.0.0.0") -> bool:
+    """Check if a port is available for binding"""
+    try:
+        test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        test_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        test_socket.bind((host, port))
+        test_socket.close()
+        return True
+    except OSError:
+        return False
+
+
+def find_available_port(start_port: int, max_attempts: int = 10, host: str = "0.0.0.0") -> int:
+    """Find an available port starting from start_port"""
+    for offset in range(max_attempts):
+        port = start_port + offset
+        if is_port_available(port, host):
+            return port
+    return -1
+
+
+def get_process_using_port(port: int) -> Optional[str]:
+    """Try to identify what process is using a port"""
+    try:
+        import psutil
+        for conn in psutil.net_connections(kind='inet'):
+            # Check if laddr exists and has the port we're looking for
+            if conn.laddr and hasattr(conn.laddr, 'port') and conn.laddr.port == port:
+                if conn.pid:
+                    try:
+                        process = psutil.Process(conn.pid)
+                        return f"{process.name()} (PID: {conn.pid})"
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        return f"PID: {conn.pid}"
+    except (ImportError, PermissionError):
+        pass
+    return None
 
 # Mock data
 MOCK_AGENTS = [
@@ -181,19 +228,67 @@ def dashboard_metrics():
 if __name__ == "__main__":
     import os
     
-    # Only enable debug mode if explicitly set via environment variable
-    debug_mode = os.environ.get('FLASK_DEBUG', '0') == '1'
+    parser = argparse.ArgumentParser(description="Run the Mock HexStrike AI Backend Server")
+    parser.add_argument("--port", type=int, default=DEFAULT_PORT, help=f"Port for the API server (default: {DEFAULT_PORT})")
+    parser.add_argument("--host", type=str, default=DEFAULT_HOST, help=f"Host to bind the server to (default: {DEFAULT_HOST})")
+    parser.add_argument("--no-auto-port", action="store_true", help="Disable automatic port selection when the specified port is in use")
+    parser.add_argument("--debug", action="store_true", help="Enable debug mode")
+    args = parser.parse_args()
     
-    print("""
+    # Debug mode can also be set via environment variable
+    debug_mode = args.debug or os.environ.get('FLASK_DEBUG', '0') == '1'
+    
+    api_port = args.port
+    server_host = args.host
+    
+    # Automatic port fallback is enabled by default
+    auto_port_enabled = not args.no_auto_port
+    
+    # Check if the requested port is available
+    original_port = api_port
+    if not is_port_available(api_port, server_host):
+        process_info = get_process_using_port(api_port)
+        if process_info:
+            logger.warning(f"⚠️  Port {api_port} is in use by: {process_info}")
+        else:
+            logger.warning(f"⚠️  Port {api_port} is already in use")
+        
+        if auto_port_enabled:
+            # Automatically find an available port (default behavior)
+            new_port = find_available_port(api_port + 1, host=server_host)
+            if new_port > 0:
+                logger.info(f"🔄 Auto-switching to available port: {new_port}")
+                api_port = new_port
+            else:
+                logger.error(f"❌ Could not find an available port after checking ports {api_port + 1} to {api_port + 11}")
+                logger.error("   Please free up a port or specify a different port with --port")
+                sys.exit(1)
+        else:
+            logger.error(f"❌ Port {api_port} is already in use!")
+            logger.error("")
+            logger.error("   To fix this issue, you can:")
+            logger.error(f"   1. Kill the process using port {api_port}")
+            logger.error(f"   2. Use a different port: python mock_backend.py --port=9000")
+            logger.error(f"   3. Remove --no-auto-port to enable automatic port selection")
+            logger.error("")
+            sys.exit(1)
+    
+    port_note = ""
+    if original_port != api_port:
+        port_note = f"\n║   Note: Requested port {original_port} was in use           ║"
+    
+    print(f"""
 ╔══════════════════════════════════════════════════════════╗
 ║   Mock HexStrike AI Backend Server                      ║
 ║   Frontend Development Mode                              ║
 ╠══════════════════════════════════════════════════════════╣
-║   Port: 8889                                             ║
+║   Host: {server_host:<48} ║
+║   Port: {api_port:<48} ║
 ║   CORS: Enabled                                          ║
-║   Debug: {}                                       ║
+║   Debug: {'Enabled' if debug_mode else 'Disabled':<47} ║
+║   Auto-Port: {'Enabled' if auto_port_enabled else 'Disabled':<43} ║{port_note}
 ║   Status: Ready for frontend development                 ║
 ╚══════════════════════════════════════════════════════════╝
-    """.format('Enabled' if debug_mode else 'Disabled'))
+    """)
     
-    app.run(host="0.0.0.0", port=8889, debug=debug_mode)
+    app.run(host=server_host, port=api_port, debug=debug_mode)
