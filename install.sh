@@ -680,7 +680,7 @@ check_security_tools() {
     local total_missing=$((apt_count + go_count + rust_count + pip_count))
     
     if [ $total_missing -gt 0 ]; then
-        if [ "$AUTO_INSTALL_SYSTEM_DEPS" = true ]; then
+        if [ "$AUTO_INSTALL_SYSTEM_DEPS" = true ] && [ "$SKIP_SECURITY_TOOLS" = false ]; then
             log_info "Auto-installing security tools..."
             install_security_tools
             
@@ -714,7 +714,7 @@ check_security_tools() {
             check_command smbmap
             check_command netexec
         else
-            log_info "Some tools are not installed. To install them, run without --skip-security-tools flag"
+            log_info "Some tools are not installed. To install them automatically, run this script again without the --skip-security-tools flag"
             echo ""
             log_info "Or install manually:"
             if [ ${#missing_tools[@]} -gt 0 ]; then
@@ -1157,7 +1157,6 @@ parse_arguments() {
                 ;;
             --skip-security-tools)
                 SKIP_SECURITY_TOOLS=true
-                AUTO_INSTALL_SYSTEM_DEPS=false
                 shift
                 ;;
             --with-offensive-tools)
