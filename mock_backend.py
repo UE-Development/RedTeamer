@@ -36,7 +36,7 @@ def is_port_available(port: int, host: str = "0.0.0.0") -> bool:
         return False
 
 
-def find_available_port(start_port: int, max_attempts: int = 10, host: str = "0.0.0.0") -> int:
+def find_available_port(start_port: int, max_attempts: int = 50, host: str = "0.0.0.0") -> int:
     """Find an available port starting from start_port"""
     for offset in range(max_attempts):
         port = start_port + offset
@@ -267,7 +267,7 @@ if __name__ == "__main__":
                 logger.info(f"🔄 Auto-switching to available port: {new_port}")
                 api_port = new_port
             else:
-                logger.error(f"❌ Could not find an available port after checking ports {api_port + 1} to {api_port + 11}")
+                logger.error(f"❌ Could not find an available port after checking ports {api_port + 1} to {api_port + 51}")
                 logger.error("   Please free up a port or specify a different port with --port")
                 sys.exit(1)
         else:
