@@ -35,8 +35,34 @@ import {
   AgentScheduler,
 } from '../components/agents';
 import type { CollaborationTask, CollaborationWorkflow } from '../components/agents';
-import type { Agent, AgentMessage } from '../types';
+import type { Agent, AgentMessage, AgentType, AgentStatus } from '../types';
 import { apiClient } from '../services/api';
+
+// Valid agent types and statuses
+const VALID_AGENT_TYPES: AgentType[] = [
+  'bugbounty', 'ctf', 'cve_intelligence', 'exploit_generator',
+  'web_security', 'auth_testing', 'mobile_security', 'cloud_security',
+  'binary_analysis', 'osint', 'network_recon', 'report_generator'
+];
+const VALID_AGENT_STATUSES: AgentStatus[] = ['active', 'standby', 'busy', 'error'];
+
+// Helper function to validate and normalize agent type
+function validateAgentType(type: string): AgentType {
+  if (VALID_AGENT_TYPES.includes(type as AgentType)) {
+    return type as AgentType;
+  }
+  // Default to a generic type if unknown
+  return 'bugbounty';
+}
+
+// Helper function to validate and normalize agent status
+function validateAgentStatus(status: string): AgentStatus {
+  if (VALID_AGENT_STATUSES.includes(status as AgentStatus)) {
+    return status as AgentStatus;
+  }
+  // Default to standby if unknown
+  return 'standby';
+}
 
 // Interface for agent message API response
 interface AgentMessageResponse {
@@ -290,8 +316,8 @@ const AgentsPage = () => {
             }) => ({
               id: agent.id,
               name: agent.name,
-              type: agent.type as Agent['type'],
-              status: agent.status as Agent['status'],
+              type: validateAgentType(agent.type),
+              status: validateAgentStatus(agent.status),
               capabilities: agent.capabilities || [],
               lastActive: new Date().toISOString(),
               description: agent.description || '',
@@ -355,11 +381,12 @@ const AgentsPage = () => {
           } else {
             await apiClient.deactivateAgent(agent.id);
           }
+          // Only update local state on success
           dispatch(updateAgent({ ...agent, status: newStatus }));
         } catch (error) {
+          // Don't update local state on failure to keep frontend and backend in sync
           console.error('Failed to toggle agent status:', error);
-          // Still update locally for better UX
-          dispatch(updateAgent({ ...agent, status: newStatus }));
+          // Optionally could show a notification to user here
         }
       }
     },
