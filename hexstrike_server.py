@@ -17592,12 +17592,14 @@ def get_process_using_port(port: int) -> Optional[str]:
     """Try to identify what process is using a port"""
     try:
         for conn in psutil.net_connections(kind='inet'):
-            if conn.laddr.port == port:
-                try:
-                    process = psutil.Process(conn.pid)
-                    return f"{process.name()} (PID: {conn.pid})"
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    return f"PID: {conn.pid}"
+            # Check if laddr exists and has the port we're looking for
+            if conn.laddr and hasattr(conn.laddr, 'port') and conn.laddr.port == port:
+                if conn.pid:
+                    try:
+                        process = psutil.Process(conn.pid)
+                        return f"{process.name()} (PID: {conn.pid})"
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        return f"PID: {conn.pid}"
     except (psutil.AccessDenied, PermissionError):
         pass
     return None
@@ -17641,7 +17643,7 @@ if __name__ == "__main__":
                 logger.info(f"🔄 Auto-switching to available port: {new_port}")
                 API_PORT = new_port
             else:
-                logger.error(f"❌ Could not find an available port after checking {API_PORT} to {API_PORT + 10}")
+                logger.error(f"❌ Could not find an available port after checking ports {API_PORT + 1} to {API_PORT + 11}")
                 logger.error("   Please free up a port or specify a different port with --port")
                 sys.exit(1)
         else:
