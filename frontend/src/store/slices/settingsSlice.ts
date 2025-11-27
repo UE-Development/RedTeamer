@@ -137,8 +137,8 @@ const loadSettingsFromStorage = (): SettingsState => {
 const saveSettingsToStorage = (settings: SettingsState): void => {
   try {
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
-  } catch {
-    console.error('Failed to save settings to localStorage');
+  } catch (error) {
+    console.error('Failed to save settings to localStorage:', error instanceof Error ? error.message : 'Unknown error');
   }
 };
 
@@ -192,8 +192,8 @@ const settingsSlice = createSlice({
       // Clear localStorage when resetting
       try {
         localStorage.removeItem(SETTINGS_STORAGE_KEY);
-      } catch {
-        console.error('Failed to clear settings from localStorage');
+      } catch (error) {
+        console.error('Failed to clear settings from localStorage:', error instanceof Error ? error.message : 'Unknown error');
       }
       return defaultSettings;
     },

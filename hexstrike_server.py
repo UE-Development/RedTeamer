@@ -17476,8 +17476,7 @@ def send_agent_message(agent_id: str):
         if not agent:
             return jsonify({"error": f"Agent {agent_id} not found"}), 404
         
-        # Sanitize message for logging (remove sensitive patterns)
-        safe_log_message = message[:100].replace('\n', ' ').replace('\r', '')
+        # Log message metadata only (not content for security)
         logger.info(f"Agent {agent_id} ({agent['name']}) received message (length: {len(message)})")
         
         # Process the message based on agent type and content

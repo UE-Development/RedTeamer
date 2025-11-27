@@ -46,6 +46,22 @@ interface AgentMessageResponse {
   status?: string;
 }
 
+// Helper function to safely extract agent response data
+function extractAgentResponse(response: unknown): AgentMessageResponse {
+  if (response && typeof response === 'object') {
+    const obj = response as Record<string, unknown>;
+    return {
+      response: typeof obj.response === 'string' ? obj.response : undefined,
+      message: typeof obj.message === 'string' ? obj.message : undefined,
+      result: typeof obj.result === 'string' ? obj.result : undefined,
+      tools_used: Array.isArray(obj.tools_used) ? obj.tools_used : undefined,
+      toolsUsed: Array.isArray(obj.toolsUsed) ? obj.toolsUsed : undefined,
+      status: typeof obj.status === 'string' ? obj.status : undefined,
+    };
+  }
+  return {};
+}
+
 // Tab indices for better maintainability
 const TABS = {
   CHAT: 0,
@@ -335,7 +351,7 @@ const AgentsPage = () => {
         // Use real backend API
         try {
           const response = await apiClient.sendAgentMessage(selectedAgent.id, content);
-          const data = response as AgentMessageResponse;
+          const data = extractAgentResponse(response);
           
           const agentResponse: AgentMessage = {
             id: `msg-${Date.now() + 1}`,
@@ -436,7 +452,7 @@ const AgentsPage = () => {
         // Use real API
         try {
           const response = await apiClient.sendAgentMessage(agentId, content);
-          const data = response as AgentMessageResponse;
+          const data = extractAgentResponse(response);
           
           setMultiAgentChats((innerPrev) =>
             innerPrev.map((innerChat) => {
