@@ -65,7 +65,7 @@ print_banner() {
     echo "║  ██║  ██║███████╗██╔╝ ██╗███████║   ██║   ██║  ██║██║██║  ██╗███████╗    ║"
     echo "║  ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝╚═╝  ╚═╝╚══════╝    ║"
     echo "║                                                                           ║"
-    echo "║            ${BOLD}HexStrike AI v6.0 - Auto Installer${NC}${RED}                            ║"
+    echo -e "║            ${BOLD}HexStrike AI v6.0 - Auto Installer${NC}${RED}                            ║"
     echo "║                  AI-Powered Cybersecurity Platform                        ║"
     echo "║                                                                           ║"
     echo "╚═══════════════════════════════════════════════════════════════════════════╝"
@@ -545,6 +545,36 @@ install_security_tools() {
     
     # Install Go-based tools
     if [ ${#go_tools[@]} -gt 0 ]; then
+        # Install Go if not available
+        if ! command -v go &> /dev/null; then
+            log_info "Go is not installed. Installing Go..."
+            case "$DETECTED_DISTRO" in
+                ubuntu|debian|kali)
+                    sudo apt update
+                    sudo apt install -y golang-go || {
+                        log_warning "Failed to install Go via apt"
+                        log_info "Install Go manually from: https://golang.org/dl/"
+                    }
+                    ;;
+                fedora)
+                    sudo dnf install -y golang || {
+                        log_warning "Failed to install Go via dnf"
+                        log_info "Install Go manually from: https://golang.org/dl/"
+                    }
+                    ;;
+                macos)
+                    brew install go || {
+                        log_warning "Failed to install Go via brew"
+                        log_info "Install Go manually from: https://golang.org/dl/"
+                    }
+                    ;;
+                *)
+                    log_warning "Cannot auto-install Go on this OS: $DETECTED_DISTRO"
+                    log_info "Install Go from: https://golang.org/dl/"
+                    ;;
+            esac
+        fi
+        
         if command -v go &> /dev/null; then
             log_info "Installing Go-based security tools..."
             
@@ -563,7 +593,7 @@ install_security_tools() {
             log_info "Go tools installed to $GOPATH/bin"
             log_info "Add to your PATH: export PATH=\$PATH:$GOPATH/bin"
         else
-            log_warning "Go is not installed. Skipping Go-based tools: ffuf, nuclei, amass, subfinder"
+            log_warning "Go is still not available. Skipping Go-based tools: ffuf, nuclei, amass, subfinder"
             log_info "Install Go from: https://golang.org/dl/"
             log_info "Then run: go install <tool>@latest"
         fi
@@ -573,6 +603,31 @@ install_security_tools() {
     
     # Install Rust-based tools
     if [ ${#rust_tools[@]} -gt 0 ]; then
+        # Install Rust/Cargo if not available
+        if ! command -v cargo &> /dev/null; then
+            log_info "Rust/Cargo not found. Installing Rust toolchain..."
+            # Download rustup installer to temp file for verification before execution
+            local rustup_script="/tmp/rustup-init-$$.sh"
+            if curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o "$rustup_script"; then
+                chmod +x "$rustup_script"
+                "$rustup_script" -y || {
+                    log_warning "Failed to install Rust toolchain"
+                    log_info "Please install Rust manually from: https://rustup.rs/"
+                }
+                rm -f "$rustup_script"
+            else
+                log_warning "Failed to download Rust installer"
+                log_info "Please install Rust manually from: https://rustup.rs/"
+            fi
+            # Source cargo environment and verify it's available
+            if [ -f "$HOME/.cargo/env" ]; then
+                source "$HOME/.cargo/env"
+                if ! command -v cargo &> /dev/null; then
+                    log_warning "Cargo still not available after sourcing environment"
+                fi
+            fi
+        fi
+        
         if command -v cargo &> /dev/null; then
             log_info "Installing Rust-based security tools..."
             for tool in "${rust_tools[@]}"; do
@@ -580,7 +635,7 @@ install_security_tools() {
                 cargo install "$tool" || log_warning "Failed to install $tool"
             done
         else
-            log_warning "Cargo (Rust) is not installed. Skipping Rust-based tools: rustscan, feroxbuster"
+            log_warning "Cargo (Rust) is still not available. Skipping Rust-based tools: rustscan, feroxbuster"
             log_info "Install Rust from: https://rustup.rs/"
             log_info "Then run: cargo install rustscan"
         fi
