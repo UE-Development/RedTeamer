@@ -16,6 +16,7 @@ import sqlite3
 import json
 import os
 import logging
+import shutil
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 from contextlib import contextmanager
@@ -26,6 +27,16 @@ logger = logging.getLogger(__name__)
 
 # Default database path (relative to script directory)
 DEFAULT_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hexstrike_data.db")
+
+# Valid table names for stats query (whitelist for security)
+VALID_TABLES = {'users', 'projects', 'scans', 'vulnerabilities', 'settings', 'audit_log'}
+
+# Vulnerability status constants
+VULN_STATUS_NEW = 'new'
+VULN_STATUS_CONFIRMED = 'confirmed'
+VULN_STATUS_FALSE_POSITIVE = 'false_positive'
+VULN_STATUS_REMEDIATED = 'remediated'
+VULN_STATUSES_REQUIRING_VERIFICATION = {VULN_STATUS_CONFIRMED, VULN_STATUS_FALSE_POSITIVE, VULN_STATUS_REMEDIATED}
 
 
 class HexStrikeDatabase:
@@ -106,6 +117,7 @@ class HexStrikeDatabase:
                     is_active BOOLEAN DEFAULT 1,
                     preferences TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     last_login TIMESTAMP
                 )
             ''')
@@ -600,11 +612,18 @@ class HexStrikeDatabase:
             return [dict(row) for row in cursor.fetchall()]
     
     def update_vulnerability_status(self, vuln_id: int, status: str) -> bool:
-        """Update vulnerability status (new, confirmed, false_positive, remediated)."""
+        """
+        Update vulnerability status.
+        
+        Args:
+            vuln_id: Vulnerability ID
+            status: One of: new, confirmed, false_positive, remediated
+        """
         with self.get_connection() as conn:
             cursor = conn.cursor()
             
-            verified_at = datetime.now().isoformat() if status in ('confirmed', 'false_positive', 'remediated') else None
+            # Use constants for status comparison
+            verified_at = datetime.now().isoformat() if status in VULN_STATUSES_REQUIRING_VERIFICATION else None
             
             cursor.execute('''
                 UPDATE vulnerabilities SET status = ?, verified_at = ?
@@ -714,8 +733,9 @@ class HexStrikeDatabase:
                 'database_size_bytes': os.path.getsize(self.db_path) if os.path.exists(self.db_path) else 0,
             }
             
-            tables = ['users', 'projects', 'scans', 'vulnerabilities', 'settings', 'audit_log']
-            for table in tables:
+            # Use the predefined whitelist of valid table names for security
+            for table in VALID_TABLES:
+                # Table name is validated against whitelist, safe to use in query
                 cursor.execute(f'SELECT COUNT(*) as count FROM {table}')
                 stats[f'{table}_count'] = cursor.fetchone()['count']
             
@@ -741,7 +761,6 @@ class HexStrikeDatabase:
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             backup_path = f"{self.db_path}.backup_{timestamp}"
         
-        import shutil
         shutil.copy2(self.db_path, backup_path)
         logger.info(f"Database backup created: {backup_path}")
         return backup_path
