@@ -1037,6 +1037,9 @@ cleanup() {
         wait $SERVER_PID 2>/dev/null
     fi
     
+    # Cleanup port file
+    rm -f "$SCRIPT_DIR/.hexstrike_port" 2>/dev/null
+    
     echo -e "${GREEN}All services stopped.${NC}"
     exit 0
 }
@@ -1044,33 +1047,63 @@ cleanup() {
 # Set up trap for cleanup on SIGINT and SIGTERM
 trap cleanup SIGINT SIGTERM
 
+# Get external IP address for display when binding to 0.0.0.0
+get_external_ip() {
+    # Try to get external IP from common interfaces
+    local ip=""
+    
+    # Try to get the IP from the default route interface
+    ip=$(ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K[0-9.]+' | head -1)
+    
+    if [ -z "$ip" ]; then
+        # Fallback: try hostname -I
+        ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+    fi
+    
+    if [ -z "$ip" ]; then
+        # Fallback: try ifconfig
+        ip=$(ifconfig 2>/dev/null | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1' | head -1)
+    fi
+    
+    echo "$ip"
+}
+
 # Health check function - checks both requested port and actual port from file
 check_server_health() {
     local host="${SERVER_HOST:-127.0.0.1}"
     local port="${SERVER_PORT:-8889}"
-    # Increased to 15 attempts to allow time for server startup and port file write
+    local check_host="$host"
+    
+    # For health check, use localhost or 127.0.0.1 if binding to 0.0.0.0
+    if [ "$host" = "0.0.0.0" ]; then
+        check_host="127.0.0.1"
+    fi
+    
+    # Increased to 20 attempts to allow time for server startup and port file write
     # when auto-port switching is needed
-    local max_attempts=15
+    local max_attempts=20
     local attempt=1
     
     while [ $attempt -le $max_attempts ]; do
-        # First try the requested port
-        if curl -s -o /dev/null -w "%{http_code}" "http://${host}:${port}/health" 2>/dev/null | grep -q "200"; then
-            ACTUAL_SERVER_PORT="$port"
-            return 0
-        fi
-        
         # Check if server wrote an actual port to file (in case of auto-port switch)
+        # Check this first as it's more reliable
         if [ -f "$SCRIPT_DIR/.hexstrike_port" ]; then
             local actual_port=$(cat "$SCRIPT_DIR/.hexstrike_port" 2>/dev/null)
-            if [ -n "$actual_port" ] && [ "$actual_port" != "$port" ]; then
-                if curl -s -o /dev/null -w "%{http_code}" "http://${host}:${actual_port}/health" 2>/dev/null | grep -q "200"; then
+            if [ -n "$actual_port" ]; then
+                if curl -s -o /dev/null -w "%{http_code}" "http://${check_host}:${actual_port}/health" 2>/dev/null | grep -q "200"; then
                     ACTUAL_SERVER_PORT="$actual_port"
                     return 0
                 fi
             fi
         fi
         
+        # Try the requested port
+        if curl -s -o /dev/null -w "%{http_code}" "http://${check_host}:${port}/health" 2>/dev/null | grep -q "200"; then
+            ACTUAL_SERVER_PORT="$port"
+            return 0
+        fi
+        
+        echo -n "."
         sleep 1
         attempt=$((attempt + 1))
     done
@@ -1096,6 +1129,9 @@ for arg in "$@"; do
             ;;
     esac
 done
+
+# Remove old port file before starting
+rm -f "$SCRIPT_DIR/.hexstrike_port" 2>/dev/null
 
 echo -e "${CYAN}"
 echo "╔═══════════════════════════════════════════════════════════════╗"
@@ -1135,13 +1171,23 @@ SERVER_PID=$!
 echo -n "   Waiting for server to be ready"
 if check_server_health; then
     echo ""
+    
+    # Determine display host - show external IP if binding to 0.0.0.0
+    DISPLAY_HOST="$SERVER_HOST"
+    if [ "$SERVER_HOST" = "0.0.0.0" ]; then
+        EXTERNAL_IP=$(get_external_ip)
+        if [ -n "$EXTERNAL_IP" ]; then
+            DISPLAY_HOST="$EXTERNAL_IP"
+        fi
+    fi
+    
     # Use actual port if different from requested (in case of auto-port switch)
     if [ -n "$ACTUAL_SERVER_PORT" ] && [ "$ACTUAL_SERVER_PORT" != "$SERVER_PORT" ]; then
-        echo -e "${GREEN}✅ Backend server running on http://${SERVER_HOST}:${ACTUAL_SERVER_PORT}${NC}"
+        echo -e "${GREEN}✅ Backend server running on http://${DISPLAY_HOST}:${ACTUAL_SERVER_PORT}${NC}"
         echo -e "${YELLOW}   (Note: Requested port ${SERVER_PORT} was in use, using ${ACTUAL_SERVER_PORT})${NC}"
         SERVER_PORT="$ACTUAL_SERVER_PORT"
     else
-        echo -e "${GREEN}✅ Backend server running on http://${SERVER_HOST}:${SERVER_PORT}${NC}"
+        echo -e "${GREEN}✅ Backend server running on http://${DISPLAY_HOST}:${SERVER_PORT}${NC}"
     fi
 else
     echo ""
@@ -1191,13 +1237,31 @@ if [ "$FRONTEND_AVAILABLE" = true ]; then
     fi
 fi
 
+# Determine display host for final summary
+DISPLAY_HOST="$SERVER_HOST"
+if [ "$SERVER_HOST" = "0.0.0.0" ]; then
+    EXTERNAL_IP=$(get_external_ip)
+    if [ -n "$EXTERNAL_IP" ]; then
+        DISPLAY_HOST="$EXTERNAL_IP"
+    fi
+fi
+
+# Determine frontend display host
+FRONTEND_DISPLAY_HOST="localhost"
+if [ "$SERVER_HOST" = "0.0.0.0" ]; then
+    EXTERNAL_IP=$(get_external_ip)
+    if [ -n "$EXTERNAL_IP" ]; then
+        FRONTEND_DISPLAY_HOST="$EXTERNAL_IP"
+    fi
+fi
+
 echo ""
 echo -e "${GREEN}═══════════════════════════════════════════════════════════${NC}"
 echo -e "${GREEN}  HexStrike AI is running!${NC}"
 echo ""
-echo -e "  ${CYAN}📡 Backend API:${NC}    http://${SERVER_HOST}:${SERVER_PORT}"
+echo -e "  ${CYAN}📡 Backend API:${NC}    http://${DISPLAY_HOST}:${SERVER_PORT}"
 if [ "$FRONTEND_STARTED" = true ] && [ -n "$FRONTEND_PID" ]; then
-    echo -e "  ${CYAN}🌐 Frontend:${NC}       http://localhost:${FRONTEND_PORT}"
+    echo -e "  ${CYAN}🌐 Frontend:${NC}       http://${FRONTEND_DISPLAY_HOST}:${FRONTEND_PORT}"
 elif [ -n "$FRONTEND_SKIP_REASON" ]; then
     case "$FRONTEND_SKIP_REASON" in
         nodejs)
