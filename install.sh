@@ -435,11 +435,97 @@ check_frontend_prerequisites() {
             NODE_AVAILABLE=true
         else
             log_warning "Node.js version $NODE_VERSION is below minimum required (18+)"
-            log_info "Frontend installation will be skipped. Install Node.js 18+ for frontend support."
+            if [ "$AUTO_INSTALL_SYSTEM_DEPS" = true ]; then
+                log_info "Auto-installing Node.js 18+..."
+                install_nodejs
+            else
+                log_info "Frontend installation will be skipped. Install Node.js 18+ for frontend support."
+            fi
         fi
     else
-        log_warning "Node.js/npm not found. Frontend will not be installed."
-        log_info "Install Node.js 18+ for the web frontend: https://nodejs.org/"
+        log_warning "Node.js/npm not found."
+        if [ "$AUTO_INSTALL_SYSTEM_DEPS" = true ]; then
+            log_info "Auto-installing Node.js 18+..."
+            install_nodejs
+        else
+            log_info "Install Node.js 18+ for the web frontend: https://nodejs.org/"
+        fi
+    fi
+}
+
+install_nodejs() {
+    log_info "Installing Node.js 18+ LTS..."
+    
+    case "$DETECTED_DISTRO" in
+        ubuntu|debian|kali)
+            # Install Node.js from NodeSource repository for latest LTS version
+            log_info "Setting up NodeSource repository for Node.js 18..."
+            
+            # Install required packages for adding repositories
+            sudo apt update
+            sudo apt install -y ca-certificates curl gnupg
+            
+            # Create keyrings directory if it doesn't exist
+            sudo mkdir -p /etc/apt/keyrings
+            
+            # Download and add NodeSource GPG key
+            curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
+            
+            # Add NodeSource repository for Node.js 18
+            NODE_MAJOR_VERSION=18
+            echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_MAJOR_VERSION.x nodistro main" | sudo tee /etc/apt/sources.list.d/nodesource.list
+            
+            # Install Node.js
+            sudo apt update
+            sudo apt install -y nodejs || {
+                log_warning "Failed to install Node.js from NodeSource. Trying alternative method..."
+                # Fallback: try installing from Ubuntu/Debian repos (may be older version)
+                sudo apt install -y nodejs npm
+            }
+            ;;
+        fedora)
+            # Install Node.js from Fedora repos or NodeSource
+            sudo dnf install -y nodejs npm || {
+                log_warning "Failed to install Node.js from default repos"
+                # Try NodeSource for Fedora
+                curl -fsSL https://rpm.nodesource.com/setup_18.x | sudo bash -
+                sudo dnf install -y nodejs
+            }
+            ;;
+        macos)
+            # Install Node.js via Homebrew
+            if command -v brew &> /dev/null; then
+                brew install node@18
+                # Link Node.js 18 if installed
+                brew link --overwrite node@18 2>/dev/null || true
+            else
+                log_warning "Homebrew not found. Please install Node.js manually from https://nodejs.org/"
+                return 1
+            fi
+            ;;
+        *)
+            log_warning "Cannot auto-install Node.js on this OS: $DETECTED_DISTRO"
+            log_info "Please install Node.js 18+ manually from: https://nodejs.org/"
+            return 1
+            ;;
+    esac
+    
+    # Verify installation
+    if command -v node &> /dev/null && command -v npm &> /dev/null; then
+        NODE_VERSION=$(node --version | sed 's/v//')
+        NPM_VERSION=$(npm --version)
+        NODE_MAJOR=$(echo "$NODE_VERSION" | cut -d. -f1)
+        
+        if [ "$NODE_MAJOR" -ge 18 ]; then
+            log_success "Node.js v$NODE_VERSION and npm $NPM_VERSION installed successfully"
+            NODE_AVAILABLE=true
+        else
+            log_warning "Installed Node.js version $NODE_VERSION is below required 18+. Frontend may not work correctly."
+            NODE_AVAILABLE=true  # Try anyway
+        fi
+    else
+        log_warning "Node.js installation could not be verified. Frontend may not be available."
+        NODE_AVAILABLE=false
     fi
 }
 
@@ -1272,6 +1358,8 @@ elif [ -n "$FRONTEND_SKIP_REASON" ]; then
             ;;
     esac
 fi
+echo ""
+echo -e "  ${YELLOW}⚠️  Note: Use HTTP (not HTTPS) to access the server${NC}"
 echo ""
 echo -e "  Press ${YELLOW}Ctrl+C${NC} to stop all services"
 echo -e "${GREEN}═══════════════════════════════════════════════════════════${NC}"

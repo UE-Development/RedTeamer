@@ -9020,6 +9020,79 @@ file_manager = FileOperationsManager()
 
 # API Routes
 
+@app.route("/", methods=["GET"])
+def index():
+    """Root endpoint - provides API information and status"""
+    return jsonify({
+        "name": "HexStrike AI",
+        "version": "6.0",
+        "description": "AI-Powered Cybersecurity Automation Platform",
+        "status": "running",
+        "protocol": "HTTP",
+        "info": "This is the Backend API server. For the web interface with login, start the frontend.",
+        "frontend": {
+            "description": "The web interface (login page, dashboard, etc.) runs separately",
+            "start_command": "./start-frontend.sh",
+            "default_url": "http://localhost:3000",
+            "login_url": "http://localhost:3000/login",
+            "demo_credentials": {
+                "email": "admin@hexstrike.ai",
+                "password": "admin"
+            }
+        },
+        "api_endpoints": {
+            "health": "/health",
+            "api_docs": "/api",
+            "command": "/api/command",
+            "intelligence": "/api/intelligence/analyze-target",
+            "processes": "/api/processes/list",
+            "cache_stats": "/api/cache/stats"
+        },
+        "note": "Use HTTP (not HTTPS) to access this server. For HTTPS, set up a reverse proxy.",
+        "documentation": "https://github.com/UE-Development/RedTeamer"
+    })
+
+@app.route("/api", methods=["GET"])
+def api_index():
+    """API documentation endpoint"""
+    return jsonify({
+        "name": "HexStrike AI API",
+        "version": "6.0",
+        "endpoints": {
+            "core": {
+                "GET /": "Server information and status",
+                "GET /health": "Health check with tool availability",
+                "GET /api": "API documentation (this endpoint)",
+                "POST /api/command": "Execute arbitrary commands"
+            },
+            "intelligence": {
+                "POST /api/intelligence/analyze-target": "AI-powered target analysis",
+                "POST /api/intelligence/select-tools": "Intelligent tool selection",
+                "POST /api/intelligence/optimize-parameters": "Parameter optimization",
+                "POST /api/intelligence/create-attack-chain": "Create attack chains",
+                "POST /api/intelligence/smart-scan": "Smart scanning"
+            },
+            "processes": {
+                "GET /api/processes/list": "List active processes",
+                "GET /api/processes/status/<pid>": "Get process status",
+                "POST /api/processes/terminate/<pid>": "Terminate a process",
+                "GET /api/processes/dashboard": "Process dashboard"
+            },
+            "bugbounty": {
+                "POST /api/bugbounty/reconnaissance-workflow": "Bug bounty recon",
+                "POST /api/bugbounty/vulnerability-hunting-workflow": "Vulnerability hunting"
+            },
+            "cache": {
+                "GET /api/cache/stats": "Cache statistics",
+                "POST /api/cache/clear": "Clear cache"
+            },
+            "settings": {
+                "GET /api/config/settings": "Get settings",
+                "PUT /api/config/settings": "Update settings"
+            }
+        }
+    })
+
 @app.route("/health", methods=["GET"])
 def health_check():
     """Health check endpoint with comprehensive tool detection"""
@@ -17674,6 +17747,7 @@ if __name__ == "__main__":
 {ModernVisualEngine.COLORS['BOLD']}├─────────────────────────────────────────────────────────────────────────────┤{ModernVisualEngine.COLORS['RESET']}
 {ModernVisualEngine.COLORS['BOLD']}│{ModernVisualEngine.COLORS['RESET']} {ModernVisualEngine.COLORS['CYBER_ORANGE']}🌐 Host:{ModernVisualEngine.COLORS['RESET']} {SERVER_HOST}
 {ModernVisualEngine.COLORS['BOLD']}│{ModernVisualEngine.COLORS['RESET']} {ModernVisualEngine.COLORS['CYBER_ORANGE']}🌐 Port:{ModernVisualEngine.COLORS['RESET']} {API_PORT}
+{ModernVisualEngine.COLORS['BOLD']}│{ModernVisualEngine.COLORS['RESET']} {ModernVisualEngine.COLORS['CYBER_ORANGE']}🔒 Protocol:{ModernVisualEngine.COLORS['RESET']} HTTP (use a reverse proxy for HTTPS)
 {ModernVisualEngine.COLORS['BOLD']}│{ModernVisualEngine.COLORS['RESET']} {ModernVisualEngine.COLORS['WARNING']}🔧 Debug Mode:{ModernVisualEngine.COLORS['RESET']} {DEBUG_MODE}
 {ModernVisualEngine.COLORS['BOLD']}│{ModernVisualEngine.COLORS['RESET']} {ModernVisualEngine.COLORS['ELECTRIC_PURPLE']}💾 Cache Size:{ModernVisualEngine.COLORS['RESET']} {CACHE_SIZE} | TTL: {CACHE_TTL}s
 {ModernVisualEngine.COLORS['BOLD']}│{ModernVisualEngine.COLORS['RESET']} {ModernVisualEngine.COLORS['TERMINAL_GRAY']}⏱️  Command Timeout:{ModernVisualEngine.COLORS['RESET']} {COMMAND_TIMEOUT}s
