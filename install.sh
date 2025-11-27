@@ -1093,7 +1093,8 @@ for proc in psutil.process_iter(['pid', 'cmdline']):
         if is_hexstrike:
             proc.terminate()
             print(f'Killed existing HexStrike process: PID {proc.info[\"pid\"]}')
-    except: pass
+    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess, Exception):
+        pass  # Silently continue - best effort cleanup
 " 2>/dev/null || true
             sleep 1
         fi
