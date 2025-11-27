@@ -36,12 +36,13 @@ VENV_DIR="$SCRIPT_DIR/hexstrike-env"
 FRONTEND_DIR="$SCRIPT_DIR/frontend"
 
 # Flags (defaults)
-AUTO_INSTALL_SYSTEM_DEPS=false
+AUTO_INSTALL_SYSTEM_DEPS=true
 WITH_OFFENSIVE_TOOLS=false
 PRODUCTION_MODE=false
 RECREATE_VENV=false
 SKIP_FRONTEND=false
 SKIP_TOOL_CHECK=false
+SKIP_SECURITY_TOOLS=false
 GENERATE_SYSTEMD=false
 
 # Detected OS info
@@ -75,7 +76,7 @@ print_usage() {
     echo "Usage: $0 [OPTIONS]"
     echo ""
     echo "Options:"
-    echo "  --auto-install-system-deps  Attempt to install missing system dependencies and security tools"
+    echo "  --skip-security-tools       Skip automatic installation of security tools"
     echo "  --with-offensive-tools      Install offensive tooling (pwntools, angr)"
     echo "  --production                Setup for production (gunicorn, systemd service)"
     echo "  --recreate-venv             Force recreation of the virtual environment"
@@ -85,8 +86,8 @@ print_usage() {
     echo "  -h, --help                  Show this help message"
     echo ""
     echo "Examples:"
-    echo "  $0                                  # Standard development installation"
-    echo "  $0 --auto-install-system-deps       # Install all security tools (nmap, masscan, etc.)"
+    echo "  $0                                  # Install all security tools by default"
+    echo "  $0 --skip-security-tools            # Skip security tool installation"
     echo "  $0 --with-offensive-tools           # Include binary exploitation tools"
     echo "  $0 --production --generate-systemd  # Production setup with systemd"
     echo ""
@@ -497,7 +498,6 @@ install_security_tools() {
     command -v hashcat &> /dev/null || apt_tools+=("hashcat")
     
     # SMB & Network Enumeration (apt)
-    command -v enum4linux &> /dev/null || apt_tools+=("enum4linux")
     command -v smbmap &> /dev/null || apt_tools+=("smbmap")
     
     # Go-based tools
@@ -512,6 +512,7 @@ install_security_tools() {
     
     # Pip-based tools
     command -v netexec &> /dev/null || pip_tools+=("netexec")
+    command -v enum4linux-ng &> /dev/null || pip_tools+=("enum4linux-ng")
     
     # Install apt-based tools
     if [ ${#apt_tools[@]} -gt 0 ]; then
@@ -590,7 +591,7 @@ install_security_tools() {
     # Install pip-based tools
     if [ ${#pip_tools[@]} -gt 0 ]; then
         log_info "Installing pip-based security tools: ${pip_tools[*]}"
-        # Use pipx if available, otherwise fall back to pip with --user
+        # Use pipx if available, otherwise fall back to pip
         if command -v pipx &> /dev/null; then
             for tool in "${pip_tools[@]}"; do
                 log_info "Installing $tool with pipx..."
@@ -599,7 +600,8 @@ install_security_tools() {
         else
             for tool in "${pip_tools[@]}"; do
                 log_info "Installing $tool with pip..."
-                pip install --user --index-url https://pypi.org/simple/ "$tool" || log_warning "Failed to install $tool"
+                # Install in virtual environment if active, otherwise use system pip
+                pip install --index-url https://pypi.org/simple/ "$tool" || log_warning "Failed to install $tool"
             done
         fi
     else
@@ -665,7 +667,7 @@ check_security_tools() {
     
     echo ""
     echo -e "${BOLD}SMB & Network Enumeration:${NC}"
-    check_command enum4linux || missing_tools+=("enum4linux")
+    check_command enum4linux-ng || missing_pip_tools+=("enum4linux-ng")
     check_command smbmap || missing_tools+=("smbmap")
     check_command netexec || missing_pip_tools+=("netexec")
     
@@ -678,7 +680,7 @@ check_security_tools() {
     local total_missing=$((apt_count + go_count + rust_count + pip_count))
     
     if [ $total_missing -gt 0 ]; then
-        if [ "$AUTO_INSTALL_SYSTEM_DEPS" = true ]; then
+        if [ "$AUTO_INSTALL_SYSTEM_DEPS" = true ] && [ "$SKIP_SECURITY_TOOLS" = false ]; then
             log_info "Auto-installing security tools..."
             install_security_tools
             
@@ -708,12 +710,11 @@ check_security_tools() {
             check_command subfinder
             echo ""
             echo -e "${BOLD}SMB & Network Enumeration:${NC}"
-            check_command enum4linux
+            check_command enum4linux-ng
             check_command smbmap
             check_command netexec
         else
-            log_info "Some tools are not installed. To install them automatically:"
-            echo -e "  ${YELLOW}$0 --auto-install-system-deps${NC}"
+            log_info "Some tools are not installed. To install them automatically, run this script again without the --skip-security-tools flag"
             echo ""
             log_info "Or install manually:"
             if [ ${#missing_tools[@]} -gt 0 ]; then
@@ -1150,7 +1151,12 @@ parse_arguments() {
     while [[ $# -gt 0 ]]; do
         case $1 in
             --auto-install-system-deps)
+                # Kept for backward compatibility (this is now the default)
                 AUTO_INSTALL_SYSTEM_DEPS=true
+                shift
+                ;;
+            --skip-security-tools)
+                SKIP_SECURITY_TOOLS=true
                 shift
                 ;;
             --with-offensive-tools)
@@ -1206,6 +1212,8 @@ main() {
     log_info "Installation mode: $([ "$PRODUCTION_MODE" = true ] && echo "Production" || echo "Development")"
     [ "$WITH_OFFENSIVE_TOOLS" = true ] && log_info "Including offensive tooling (pwntools, angr)"
     [ "$SKIP_FRONTEND" = true ] && log_info "Frontend installation will be skipped"
+    [ "$SKIP_SECURITY_TOOLS" = true ] && log_info "Security tools installation will be skipped"
+    [ "$AUTO_INSTALL_SYSTEM_DEPS" = true ] && [ "$SKIP_SECURITY_TOOLS" = false ] && log_info "Security tools will be auto-installed"
     echo ""
     
     # Step 1: Detect OS
