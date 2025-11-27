@@ -17346,6 +17346,7 @@ def get_alternative_tools():
 _agents_lock = threading.Lock()
 
 # Available agents configuration (use dictionary for O(1) lookup)
+# 12+ AI Agents as documented in README and expected by frontend
 _available_agents = {
     "1": {
         "id": "1",
@@ -17386,6 +17387,62 @@ _available_agents = {
         "status": "active",
         "capabilities": ["XSS detection", "SQL injection", "CSRF testing", "API security"],
         "description": "Web application security testing and analysis"
+    },
+    "6": {
+        "id": "6",
+        "name": "Auth Testing Agent",
+        "type": "auth_testing",
+        "status": "standby",
+        "capabilities": ["Authentication bypass", "Session management", "Privilege escalation"],
+        "description": "Authentication and authorization testing"
+    },
+    "7": {
+        "id": "7",
+        "name": "Mobile Security",
+        "type": "mobile_security",
+        "status": "standby",
+        "capabilities": ["Android security", "iOS security", "Mobile app analysis"],
+        "description": "Mobile application security assessment"
+    },
+    "8": {
+        "id": "8",
+        "name": "Cloud Security",
+        "type": "cloud_security",
+        "status": "standby",
+        "capabilities": ["AWS security", "Azure security", "GCP security", "Cloud misconfiguration"],
+        "description": "Cloud infrastructure security assessment"
+    },
+    "9": {
+        "id": "9",
+        "name": "Binary Analysis",
+        "type": "binary_analysis",
+        "status": "standby",
+        "capabilities": ["Disassembly", "Decompilation", "Malware analysis", "Binary exploitation"],
+        "description": "Binary and malware analysis"
+    },
+    "10": {
+        "id": "10",
+        "name": "OSINT Agent",
+        "type": "osint",
+        "status": "standby",
+        "capabilities": ["Social engineering", "Data gathering", "Reconnaissance", "Digital footprinting"],
+        "description": "Open source intelligence gathering"
+    },
+    "11": {
+        "id": "11",
+        "name": "Network Recon",
+        "type": "network_recon",
+        "status": "active",
+        "capabilities": ["Port scanning", "Service detection", "Network mapping", "Vulnerability scanning"],
+        "description": "Network reconnaissance and mapping"
+    },
+    "12": {
+        "id": "12",
+        "name": "Report Generator",
+        "type": "report_generator",
+        "status": "standby",
+        "capabilities": ["PDF reports", "HTML reports", "Executive summaries", "Technical documentation"],
+        "description": "Automated security report generation"
     },
 }
 
