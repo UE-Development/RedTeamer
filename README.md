@@ -211,8 +211,19 @@ HexStrike AI v6.0 now includes a modern React + TypeScript frontend with Agent I
 cd frontend
 npm install
 npm run dev
-# Visit http://localhost:3000
+# Visit http://localhost:3000/login
 ```
+
+### Login Credentials (Demo Mode)
+| Field | Value |
+|-------|-------|
+| **URL** | `http://localhost:3000/login` |
+| **Email** | `admin@hexstrike.ai` |
+| **Password** | `admin` |
+
+> **Note:** The frontend runs separately from the backend API. Make sure both are running:
+> - Backend API: `./start-server.sh` → runs on port 8889
+> - Frontend: `./start-frontend.sh` → runs on port 3000 (login page at `/login`)
 
 See [FRONTEND_SETUP.md](FRONTEND_SETUP.md) for detailed documentation.
 

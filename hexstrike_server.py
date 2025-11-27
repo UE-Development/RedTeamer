@@ -9029,7 +9029,18 @@ def index():
         "description": "AI-Powered Cybersecurity Automation Platform",
         "status": "running",
         "protocol": "HTTP",
-        "endpoints": {
+        "info": "This is the Backend API server. For the web interface with login, start the frontend.",
+        "frontend": {
+            "description": "The web interface (login page, dashboard, etc.) runs separately",
+            "start_command": "./start-frontend.sh",
+            "default_url": "http://localhost:3000",
+            "login_url": "http://localhost:3000/login",
+            "demo_credentials": {
+                "email": "admin@hexstrike.ai",
+                "password": "admin"
+            }
+        },
+        "api_endpoints": {
             "health": "/health",
             "api_docs": "/api",
             "command": "/api/command",
