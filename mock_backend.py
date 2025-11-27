@@ -58,7 +58,14 @@ def get_process_using_port(port: int) -> Optional[str]:
                         return f"{process.name()} (PID: {conn.pid})"
                     except (psutil.NoSuchProcess, psutil.AccessDenied):
                         return f"PID: {conn.pid}"
-    except (ImportError, PermissionError):
+    except ImportError:
+        # psutil not available
+        pass
+    except PermissionError:
+        # Permission denied to access network connections
+        pass
+    except Exception:
+        # Handle any psutil.AccessDenied or other psutil exceptions
         pass
     return None
 
@@ -277,16 +284,23 @@ if __name__ == "__main__":
     if original_port != api_port:
         port_note = f"\n║   Note: Requested port {original_port} was in use           ║"
     
+    # Use consistent field widths that accommodate typical values
+    field_width = 48
+    host_display = str(server_host)[:field_width]
+    port_display = str(api_port)
+    debug_display = 'Enabled' if debug_mode else 'Disabled'
+    auto_port_display = 'Enabled' if auto_port_enabled else 'Disabled'
+    
     print(f"""
 ╔══════════════════════════════════════════════════════════╗
 ║   Mock HexStrike AI Backend Server                      ║
 ║   Frontend Development Mode                              ║
 ╠══════════════════════════════════════════════════════════╣
-║   Host: {server_host:<48} ║
-║   Port: {api_port:<48} ║
+║   Host: {host_display:<{field_width}} ║
+║   Port: {port_display:<{field_width}} ║
 ║   CORS: Enabled                                          ║
-║   Debug: {'Enabled' if debug_mode else 'Disabled':<47} ║
-║   Auto-Port: {'Enabled' if auto_port_enabled else 'Disabled':<43} ║{port_note}
+║   Debug: {debug_display:<{field_width - 1}} ║
+║   Auto-Port: {auto_port_display:<{field_width - 5}} ║{port_note}
 ║   Status: Ready for frontend development                 ║
 ╚══════════════════════════════════════════════════════════╝
     """)
