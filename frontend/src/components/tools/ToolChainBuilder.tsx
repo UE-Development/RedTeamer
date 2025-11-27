@@ -224,7 +224,9 @@ const ToolChainBuilder = ({
     return category?.icon || <SecurityIcon />;
   };
 
-  const getStepColor = (category: string) => {
+  type ChipColor = 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning';
+
+  const getStepColor = (category: string): ChipColor => {
     switch (category) {
       case 'reconnaissance':
         return 'info';
@@ -337,7 +339,7 @@ const ToolChainBuilder = ({
                     <Chip
                       label={`Step ${index + 1}`}
                       size="small"
-                      color={getStepColor(step.category) as 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning'}
+                      color={getStepColor(step.category)}
                     />
                   </Box>
                 </StepLabel>
@@ -417,7 +419,7 @@ const ToolChainBuilder = ({
                   <Chip
                     icon={getCategoryIcon(step.category)}
                     label={step.toolName}
-                    color={getStepColor(step.category) as 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning'}
+                    color={getStepColor(step.category)}
                     variant="outlined"
                   />
                   {index < steps.length - 1 && (

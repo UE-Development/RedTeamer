@@ -138,38 +138,54 @@ const ScansPage = () => {
     }
   }, [mockDataEnabled]);
 
+  // Generate deterministic demo values based on scan ID
+  const getDemoValues = (scanId: string) => {
+    const hash = scanId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return {
+      hosts: (hash % 10) + 5,
+      ports: (hash % 50) + 20,
+      services: (hash % 20) + 10,
+    };
+  };
+
   // Convert Scan to ScanData for export
-  const convertToScanData = (scan: Scan): ScanData => ({
-    ...scan,
-    results: {
-      hosts: Math.floor(Math.random() * 10) + 5,
-      ports: Math.floor(Math.random() * 50) + 20,
-      services: Math.floor(Math.random() * 20) + 10,
-      vulnerabilities: [
-        { severity: 'critical', title: 'SQL Injection in /admin/login' },
-        { severity: 'high', title: 'XSS vulnerability in search form' },
-        { severity: 'medium', title: 'Missing HTTPS redirect' },
-      ].slice(0, scan.vulnerabilitiesFound),
-    },
-  });
+  const convertToScanData = (scan: Scan): ScanData => {
+    const demoValues = getDemoValues(scan.id);
+    return {
+      ...scan,
+      results: {
+        hosts: demoValues.hosts,
+        ports: demoValues.ports,
+        services: demoValues.services,
+        vulnerabilities: [
+          { severity: 'critical', title: 'SQL Injection in /admin/login' },
+          { severity: 'high', title: 'XSS vulnerability in search form' },
+          { severity: 'medium', title: 'Missing HTTPS redirect' },
+        ].slice(0, scan.vulnerabilitiesFound),
+      },
+    };
+  };
 
   // Convert scans for comparison tool
   const scansForComparison = useMemo(() => {
     return scans
       .filter((s) => s.status === 'completed')
-      .map((scan) => ({
-        ...scan,
-        results: {
-          hosts: Math.floor(Math.random() * 10) + 5,
-          ports: Math.floor(Math.random() * 50) + 20,
-          services: Math.floor(Math.random() * 20) + 10,
-          vulnerabilities: [
-            { id: 'vuln-1', severity: 'critical', title: 'SQL Injection', location: '/admin' },
-            { id: 'vuln-2', severity: 'high', title: 'XSS Vulnerability', location: '/search' },
-            { id: 'vuln-3', severity: 'medium', title: 'Missing Headers', location: '/' },
-          ].slice(0, scan.vulnerabilitiesFound),
-        },
-      }));
+      .map((scan) => {
+        const demoValues = getDemoValues(scan.id);
+        return {
+          ...scan,
+          results: {
+            hosts: demoValues.hosts,
+            ports: demoValues.ports,
+            services: demoValues.services,
+            vulnerabilities: [
+              { id: 'vuln-1', severity: 'critical', title: 'SQL Injection', location: '/admin' },
+              { id: 'vuln-2', severity: 'high', title: 'XSS Vulnerability', location: '/search' },
+              { id: 'vuln-3', severity: 'medium', title: 'Missing Headers', location: '/' },
+            ].slice(0, scan.vulnerabilitiesFound),
+          },
+        };
+      });
   }, [scans]);
 
   // Handle new scan creation

@@ -100,7 +100,7 @@ const ScanExporter = ({ open, onClose, scan, onExport }: ScanExporterProps) => {
     json: 'Structured data format, ideal for programmatic processing',
     csv: 'Spreadsheet format, compatible with Excel and data analysis tools',
     html: 'Interactive web report with styling and navigation',
-    pdf: 'Professional document format for sharing and printing',
+    pdf: 'Print-ready HTML report (use browser Print > Save as PDF)',
   };
 
   const handleFormatChange = (event: React.ChangeEvent<HTMLInputElement>) => {
