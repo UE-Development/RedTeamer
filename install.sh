@@ -1043,22 +1043,44 @@ cleanup() {
 # Set up trap for cleanup on SIGINT and SIGTERM
 trap cleanup SIGINT SIGTERM
 
-# Health check function
+# Health check function - checks both requested port and actual port from file
 check_server_health() {
     local host="${SERVER_HOST:-127.0.0.1}"
     local port="${SERVER_PORT:-8889}"
-    local max_attempts=10
+    # Increased to 15 attempts to allow time for server startup and port file write
+    # when auto-port switching is needed
+    local max_attempts=15
     local attempt=1
     
     while [ $attempt -le $max_attempts ]; do
-        if curl -s -o /dev/null -w "%{http_code}" "http://${host}:${port}/health" | grep -q "200"; then
+        # First try the requested port
+        if curl -s -o /dev/null -w "%{http_code}" "http://${host}:${port}/health" 2>/dev/null | grep -q "200"; then
+            ACTUAL_SERVER_PORT="$port"
             return 0
         fi
+        
+        # Check if server wrote an actual port to file (in case of auto-port switch)
+        if [ -f "$SCRIPT_DIR/.hexstrike_port" ]; then
+            local actual_port=$(cat "$SCRIPT_DIR/.hexstrike_port" 2>/dev/null)
+            if [ -n "$actual_port" ] && [ "$actual_port" != "$port" ]; then
+                if curl -s -o /dev/null -w "%{http_code}" "http://${host}:${actual_port}/health" 2>/dev/null | grep -q "200"; then
+                    ACTUAL_SERVER_PORT="$actual_port"
+                    return 0
+                fi
+            fi
+        fi
+        
         sleep 1
         attempt=$((attempt + 1))
     done
     return 1
 }
+
+# Initialize actual port variable
+ACTUAL_SERVER_PORT=""
+
+# Frontend port
+FRONTEND_PORT="3000"
 
 # Parse arguments for custom host/port
 SERVER_HOST="127.0.0.1"
@@ -1082,6 +1104,7 @@ echo -e "${NC}"
 
 # Check if frontend can be started
 FRONTEND_AVAILABLE=false
+FRONTEND_SKIP_REASON=""
 if [ -f "$SCRIPT_DIR/start-frontend.sh" ]; then
     # Check Node.js
     if command -v node &> /dev/null; then
@@ -1090,10 +1113,16 @@ if [ -f "$SCRIPT_DIR/start-frontend.sh" ]; then
             FRONTEND_AVAILABLE=true
         else
             echo -e "${YELLOW}⚠️  Frontend dependencies not installed. Skipping frontend.${NC}"
+            echo -e "${YELLOW}   To install: cd frontend && npm install${NC}"
+            FRONTEND_SKIP_REASON="dependencies"
         fi
     else
         echo -e "${YELLOW}⚠️  Node.js not found. Skipping frontend.${NC}"
+        echo -e "${YELLOW}   Install Node.js 18+ from: https://nodejs.org/${NC}"
+        FRONTEND_SKIP_REASON="nodejs"
     fi
+else
+    FRONTEND_SKIP_REASON="no-script"
 fi
 
 # Start server in background (pass along host/port if specified)
@@ -1105,7 +1134,14 @@ SERVER_PID=$!
 echo -n "   Waiting for server to be ready"
 if check_server_health; then
     echo ""
-    echo -e "${GREEN}✅ Backend server running on http://${SERVER_HOST}:${SERVER_PORT}${NC}"
+    # Use actual port if different from requested (in case of auto-port switch)
+    if [ -n "$ACTUAL_SERVER_PORT" ] && [ "$ACTUAL_SERVER_PORT" != "$SERVER_PORT" ]; then
+        echo -e "${GREEN}✅ Backend server running on http://${SERVER_HOST}:${ACTUAL_SERVER_PORT}${NC}"
+        echo -e "${YELLOW}   (Note: Requested port ${SERVER_PORT} was in use, using ${ACTUAL_SERVER_PORT})${NC}"
+        SERVER_PORT="$ACTUAL_SERVER_PORT"
+    else
+        echo -e "${GREEN}✅ Backend server running on http://${SERVER_HOST}:${SERVER_PORT}${NC}"
+    fi
 else
     echo ""
     echo -e "${RED}❌ Backend server failed to start or is not responding${NC}"
@@ -1113,17 +1149,41 @@ else
 fi
 
 # Start frontend if available
+FRONTEND_STARTED=false
 if [ "$FRONTEND_AVAILABLE" = true ]; then
     echo ""
     echo -e "${CYAN}🌐 Starting frontend...${NC}"
     "$SCRIPT_DIR/start-frontend.sh" &
     FRONTEND_PID=$!
     
-    # Wait a bit for frontend to initialize
-    sleep 3
+    # Wait for frontend to initialize and check if it's actually running
+    # We check multiple times to catch early failures
+    sleep 2
     
     if kill -0 $FRONTEND_PID 2>/dev/null; then
-        echo -e "${GREEN}✅ Frontend starting on http://localhost:3000${NC}"
+        # Process is still running after 2 seconds, wait a bit more
+        sleep 2
+        
+        if kill -0 $FRONTEND_PID 2>/dev/null; then
+            # Check if frontend is responding
+            if curl -s -o /dev/null -w "%{http_code}" "http://localhost:${FRONTEND_PORT}" 2>/dev/null | grep -qE "^[23]"; then
+                echo -e "${GREEN}✅ Frontend running on http://localhost:${FRONTEND_PORT}${NC}"
+                FRONTEND_STARTED=true
+            else
+                # Process running but not responding yet - give it more time
+                sleep 3
+                if kill -0 $FRONTEND_PID 2>/dev/null; then
+                    echo -e "${GREEN}✅ Frontend running on http://localhost:${FRONTEND_PORT}${NC}"
+                    FRONTEND_STARTED=true
+                else
+                    echo -e "${YELLOW}⚠️  Frontend process exited unexpectedly${NC}"
+                    FRONTEND_PID=""
+                fi
+            fi
+        else
+            echo -e "${YELLOW}⚠️  Frontend failed to start, continuing with backend only${NC}"
+            FRONTEND_PID=""
+        fi
     else
         echo -e "${YELLOW}⚠️  Frontend failed to start, continuing with backend only${NC}"
         FRONTEND_PID=""
@@ -1135,8 +1195,20 @@ echo -e "${GREEN}═════════════════════
 echo -e "${GREEN}  HexStrike AI is running!${NC}"
 echo ""
 echo -e "  ${CYAN}📡 Backend API:${NC}    http://${SERVER_HOST}:${SERVER_PORT}"
-if [ "$FRONTEND_AVAILABLE" = true ] && [ -n "$FRONTEND_PID" ]; then
-    echo -e "  ${CYAN}🌐 Frontend:${NC}       http://localhost:3000"
+if [ "$FRONTEND_STARTED" = true ] && [ -n "$FRONTEND_PID" ]; then
+    echo -e "  ${CYAN}🌐 Frontend:${NC}       http://localhost:${FRONTEND_PORT}"
+elif [ -n "$FRONTEND_SKIP_REASON" ]; then
+    case "$FRONTEND_SKIP_REASON" in
+        nodejs)
+            echo -e "  ${YELLOW}🌐 Frontend:${NC}       Unavailable (Node.js not installed)"
+            ;;
+        dependencies)
+            echo -e "  ${YELLOW}🌐 Frontend:${NC}       Unavailable (run: cd frontend && npm install)"
+            ;;
+        *)
+            echo -e "  ${YELLOW}🌐 Frontend:${NC}       Unavailable"
+            ;;
+    esac
 fi
 echo ""
 echo -e "  Press ${YELLOW}Ctrl+C${NC} to stop all services"

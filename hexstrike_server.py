@@ -17690,4 +17690,13 @@ if __name__ == "__main__":
         if line.strip():
             logger.info(line)
 
+    # Write the actual port to a file for other scripts to read
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    port_file = os.path.join(script_dir, '.hexstrike_port')
+    try:
+        with open(port_file, 'w') as f:
+            f.write(str(API_PORT))
+    except Exception as e:
+        logger.warning(f"Could not write port file: {e}")
+
     app.run(host=SERVER_HOST, port=API_PORT, debug=DEBUG_MODE)
