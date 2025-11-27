@@ -429,12 +429,25 @@ check_frontend_prerequisites() {
         NODE_VERSION=$(node --version | sed 's/v//')
         NPM_VERSION=$(npm --version)
         NODE_MAJOR=$(echo "$NODE_VERSION" | cut -d. -f1)
+        NODE_MINOR=$(echo "$NODE_VERSION" | cut -d. -f2)
         
-        if [ "$NODE_MAJOR" -ge 20 ]; then
+        # Check version: need 20.19+, 21.x (any), or 22.12+
+        VERSION_OK=false
+        if [ "$NODE_MAJOR" -eq 20 ] && [ "$NODE_MINOR" -ge 19 ]; then
+            VERSION_OK=true
+        elif [ "$NODE_MAJOR" -eq 21 ]; then
+            VERSION_OK=true
+        elif [ "$NODE_MAJOR" -eq 22 ] && [ "$NODE_MINOR" -ge 12 ]; then
+            VERSION_OK=true
+        elif [ "$NODE_MAJOR" -ge 23 ]; then
+            VERSION_OK=true
+        fi
+        
+        if [ "$VERSION_OK" = true ]; then
             log_success "Node.js v$NODE_VERSION and npm $NPM_VERSION found"
             NODE_AVAILABLE=true
         else
-            log_warning "Node.js version $NODE_VERSION is below minimum required (20+)"
+            log_warning "Node.js version $NODE_VERSION is not compatible"
             log_info "Vite 7.x requires Node.js 20.19+ or 22.12+"
             if [ "$AUTO_INSTALL_SYSTEM_DEPS" = true ]; then
                 log_info "Auto-installing Node.js 20+..."
@@ -516,12 +529,25 @@ install_nodejs() {
         NODE_VERSION=$(node --version | sed 's/v//')
         NPM_VERSION=$(npm --version)
         NODE_MAJOR=$(echo "$NODE_VERSION" | cut -d. -f1)
+        NODE_MINOR=$(echo "$NODE_VERSION" | cut -d. -f2)
         
-        if [ "$NODE_MAJOR" -ge 20 ]; then
+        # Check version: need 20.19+, 21.x (any), or 22.12+
+        VERSION_OK=false
+        if [ "$NODE_MAJOR" -eq 20 ] && [ "$NODE_MINOR" -ge 19 ]; then
+            VERSION_OK=true
+        elif [ "$NODE_MAJOR" -eq 21 ]; then
+            VERSION_OK=true
+        elif [ "$NODE_MAJOR" -eq 22 ] && [ "$NODE_MINOR" -ge 12 ]; then
+            VERSION_OK=true
+        elif [ "$NODE_MAJOR" -ge 23 ]; then
+            VERSION_OK=true
+        fi
+        
+        if [ "$VERSION_OK" = true ]; then
             log_success "Node.js v$NODE_VERSION and npm $NPM_VERSION installed successfully"
             NODE_AVAILABLE=true
         else
-            log_warning "Installed Node.js version $NODE_VERSION is below required 20+. Frontend may not work correctly."
+            log_warning "Installed Node.js version $NODE_VERSION is not compatible with Vite 7.x (requires 20.19+ or 22.12+)"
             NODE_AVAILABLE=true  # Try anyway
         fi
     else
