@@ -1,10 +1,11 @@
 /**
  * AI Agents Page
  * Main interface for interacting with HexStrike AI agents
+ * Supports both demo mode (mock data) and real backend communication
  */
 
 import { useEffect, useCallback, useState, useRef } from 'react';
-import { Box, Typography, Tabs, Tab, Paper } from '@mui/material';
+import { Box, Typography, Tabs, Tab, Paper, Alert } from '@mui/material';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import ChatIcon from '@mui/icons-material/Chat';
 import HistoryIcon from '@mui/icons-material/History';
@@ -12,6 +13,7 @@ import SpeedIcon from '@mui/icons-material/Speed';
 import GroupIcon from '@mui/icons-material/Group';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import ExploreIcon from '@mui/icons-material/Explore';
+import InfoIcon from '@mui/icons-material/Info';
 import { useAppSelector, useAppDispatch } from '../store';
 import {
   setAgents,
@@ -32,6 +34,33 @@ import {
 } from '../components/agents';
 import type { CollaborationTask, CollaborationWorkflow } from '../components/agents';
 import type { Agent, AgentMessage } from '../types';
+import { apiClient } from '../services/api';
+
+// Interface for agent message API response
+interface AgentMessageResponse {
+  response?: string;
+  message?: string;
+  result?: string;
+  tools_used?: string[];
+  toolsUsed?: string[];
+  status?: string;
+}
+
+// Helper function to safely extract agent response data
+function extractAgentResponse(response: unknown): AgentMessageResponse {
+  if (response && typeof response === 'object') {
+    const obj = response as Record<string, unknown>;
+    return {
+      response: typeof obj.response === 'string' ? obj.response : undefined,
+      message: typeof obj.message === 'string' ? obj.message : undefined,
+      result: typeof obj.result === 'string' ? obj.result : undefined,
+      tools_used: Array.isArray(obj.tools_used) ? obj.tools_used : undefined,
+      toolsUsed: Array.isArray(obj.toolsUsed) ? obj.toolsUsed : undefined,
+      status: typeof obj.status === 'string' ? obj.status : undefined,
+    };
+  }
+  return {};
+}
 
 // Tab indices for better maintainability
 const TABS = {
@@ -284,7 +313,7 @@ const AgentsPage = () => {
   );
 
   const handleSendMessage = useCallback(
-    (content: string) => {
+    async (content: string) => {
       if (!selectedAgent) return;
 
       // Add user message
@@ -299,26 +328,66 @@ const AgentsPage = () => {
       dispatch(addMessage(userMessage));
       dispatch(setLoading(true));
 
-      // Simulate agent response after a delay
-      setTimeout(() => {
-        const agentResponse: AgentMessage = {
-          id: `msg-${Date.now() + 1}`,
-          agentId: selectedAgent.id,
-          agentName: selectedAgent.name,
-          content: generateMockResponse(content, selectedAgent),
-          timestamp: new Date().toISOString(),
-          isUser: false,
-          metadata: {
-            toolsUsed: getToolsForCommand(content),
-            progress: 100,
-            status: 'completed',
-          },
-        };
-        dispatch(addMessage(agentResponse));
-        dispatch(setLoading(false));
-      }, 1500);
+      if (mockDataEnabled) {
+        // Use mock response in demo mode
+        setTimeout(() => {
+          const agentResponse: AgentMessage = {
+            id: `msg-${Date.now() + 1}`,
+            agentId: selectedAgent.id,
+            agentName: selectedAgent.name,
+            content: generateMockResponse(content, selectedAgent),
+            timestamp: new Date().toISOString(),
+            isUser: false,
+            metadata: {
+              toolsUsed: getToolsForCommand(content),
+              progress: 100,
+              status: 'completed',
+            },
+          };
+          dispatch(addMessage(agentResponse));
+          dispatch(setLoading(false));
+        }, 1500);
+      } else {
+        // Use real backend API
+        try {
+          const response = await apiClient.sendAgentMessage(selectedAgent.id, content);
+          const data = extractAgentResponse(response);
+          
+          const agentResponse: AgentMessage = {
+            id: `msg-${Date.now() + 1}`,
+            agentId: selectedAgent.id,
+            agentName: selectedAgent.name,
+            content: data.response || data.message || data.result || 'Response received from agent.',
+            timestamp: new Date().toISOString(),
+            isUser: false,
+            metadata: {
+              toolsUsed: data.tools_used || data.toolsUsed || [],
+              progress: 100,
+              status: data.status || 'completed',
+            },
+          };
+          dispatch(addMessage(agentResponse));
+        } catch (error) {
+          // Handle API error - show error message to user
+          const errorMessage = error instanceof Error ? error.message : 'Failed to communicate with agent';
+          const agentResponse: AgentMessage = {
+            id: `msg-${Date.now() + 1}`,
+            agentId: selectedAgent.id,
+            agentName: selectedAgent.name,
+            content: `⚠️ Error: ${errorMessage}\n\nNote: The backend agent API may not be available. Enable Demo Mode in Settings to see sample responses.`,
+            timestamp: new Date().toISOString(),
+            isUser: false,
+            metadata: {
+              status: 'error',
+            },
+          };
+          dispatch(addMessage(agentResponse));
+        } finally {
+          dispatch(setLoading(false));
+        }
+      }
     },
-    [dispatch, selectedAgent]
+    [dispatch, selectedAgent, mockDataEnabled]
   );
 
   const handleClearHistory = useCallback(() => {
@@ -327,7 +396,7 @@ const AgentsPage = () => {
 
   // Multi-agent chat handlers
   const handleMultiAgentSendMessage = useCallback(
-    (agentId: string, content: string) => {
+    async (agentId: string, content: string) => {
       setMultiAgentChats((prev) => {
         const updatedChats = prev.map((chat) => {
           if (chat.agent.id === agentId) {
@@ -340,34 +409,6 @@ const AgentsPage = () => {
               isUser: true,
             };
 
-            // Simulate agent response
-            setTimeout(() => {
-              setMultiAgentChats((innerPrev) =>
-                innerPrev.map((innerChat) => {
-                  if (innerChat.agent.id === agentId) {
-                    const agentResponse: AgentMessage = {
-                      id: `msg-${Date.now() + 1}`,
-                      agentId: innerChat.agent.id,
-                      agentName: innerChat.agent.name,
-                      content: generateMockResponse(content, innerChat.agent),
-                      timestamp: new Date().toISOString(),
-                      isUser: false,
-                      metadata: {
-                        toolsUsed: getToolsForCommand(content),
-                        progress: 100,
-                        status: 'completed',
-                      },
-                    };
-                    return {
-                      ...innerChat,
-                      messages: [...innerChat.messages, agentResponse],
-                    };
-                  }
-                  return innerChat;
-                })
-              );
-            }, 1500);
-
             return {
               ...chat,
               messages: [...chat.messages, userMessage],
@@ -377,8 +418,94 @@ const AgentsPage = () => {
         });
         return updatedChats;
       });
+
+      // Handle response based on mock data setting
+      if (mockDataEnabled) {
+        // Simulate agent response in demo mode
+        setTimeout(() => {
+          setMultiAgentChats((innerPrev) =>
+            innerPrev.map((innerChat) => {
+              if (innerChat.agent.id === agentId) {
+                const agentResponse: AgentMessage = {
+                  id: `msg-${Date.now() + 1}`,
+                  agentId: innerChat.agent.id,
+                  agentName: innerChat.agent.name,
+                  content: generateMockResponse(content, innerChat.agent),
+                  timestamp: new Date().toISOString(),
+                  isUser: false,
+                  metadata: {
+                    toolsUsed: getToolsForCommand(content),
+                    progress: 100,
+                    status: 'completed',
+                  },
+                };
+                return {
+                  ...innerChat,
+                  messages: [...innerChat.messages, agentResponse],
+                };
+              }
+              return innerChat;
+            })
+          );
+        }, 1500);
+      } else {
+        // Use real API
+        try {
+          const response = await apiClient.sendAgentMessage(agentId, content);
+          const data = extractAgentResponse(response);
+          
+          setMultiAgentChats((innerPrev) =>
+            innerPrev.map((innerChat) => {
+              if (innerChat.agent.id === agentId) {
+                const agentResponse: AgentMessage = {
+                  id: `msg-${Date.now() + 1}`,
+                  agentId: innerChat.agent.id,
+                  agentName: innerChat.agent.name,
+                  content: data.response || data.message || data.result || 'Response received from agent.',
+                  timestamp: new Date().toISOString(),
+                  isUser: false,
+                  metadata: {
+                    toolsUsed: data.tools_used || data.toolsUsed || [],
+                    progress: 100,
+                    status: data.status || 'completed',
+                  },
+                };
+                return {
+                  ...innerChat,
+                  messages: [...innerChat.messages, agentResponse],
+                };
+              }
+              return innerChat;
+            })
+          );
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Failed to communicate with agent';
+          setMultiAgentChats((innerPrev) =>
+            innerPrev.map((innerChat) => {
+              if (innerChat.agent.id === agentId) {
+                const agentResponse: AgentMessage = {
+                  id: `msg-${Date.now() + 1}`,
+                  agentId: innerChat.agent.id,
+                  agentName: innerChat.agent.name,
+                  content: `⚠️ Error: ${errorMessage}\n\nEnable Demo Mode in Settings to see sample responses.`,
+                  timestamp: new Date().toISOString(),
+                  isUser: false,
+                  metadata: {
+                    status: 'error',
+                  },
+                };
+                return {
+                  ...innerChat,
+                  messages: [...innerChat.messages, agentResponse],
+                };
+              }
+              return innerChat;
+            })
+          );
+        }
+      }
     },
-    []
+    [mockDataEnabled, agents]
   );
 
   const handleRemoveChat = useCallback((agentId: string) => {
@@ -521,6 +648,17 @@ const AgentsPage = () => {
 
   return (
     <Box sx={{ height: 'calc(100vh - 140px)' }}>
+      {/* Info banner when demo mode is off and no agents */}
+      {!mockDataEnabled && agents.length === 0 && (
+        <Alert 
+          severity="info" 
+          icon={<InfoIcon />}
+          sx={{ mb: 2 }}
+        >
+          Demo mode is off. No agents available from backend. Enable Demo Mode in Settings to see sample agents and test the interface.
+        </Alert>
+      )}
+      
       <Typography variant="h4" sx={{ mb: 3, fontWeight: 700 }}>
         <SmartToyIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
         AI Agents
