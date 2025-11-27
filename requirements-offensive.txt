@@ -1,0 +1,17 @@
+# HexStrike AI MCP Agents v6.0 - Offensive Tool Dependencies
+#
+# These dependencies are for binary exploitation and advanced security research.
+# They may require additional system packages (libffi-dev, capstone, etc.)
+#
+# INSTALLATION:
+# pip install -r requirements-offensive.txt
+#
+# NOTE: Install requirements-core.txt first!
+# These packages have complex dependencies that may fail on some systems.
+
+# ============================================================================
+# BINARY ANALYSIS (CONDITIONALLY USED)
+# ============================================================================
+pwntools>=4.10.0,<5.0.0         # Binary exploitation (from pwn import *)
+angr>=9.2.0,<10.0.0             # Binary analysis (import angr)
+bcrypt==4.0.1                   # Pin bcrypt version for passlib compatibility (fixes pwntools dependency issue)

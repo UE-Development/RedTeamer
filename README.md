@@ -39,23 +39,66 @@ cd hexstrike-ai
 ```
 
 **That's it!** The installer will automatically:
-- ✅ Check system requirements (Python 3.8+, Node.js)
+- ✅ Detect your OS (Ubuntu/Debian/Kali Linux/macOS)
+- ✅ Check system requirements (Python 3.8+, pip, venv)
 - ✅ Create a Python virtual environment
-- ✅ Install all Python dependencies
-- ✅ Install frontend dependencies (if Node.js is available)
-- ✅ Check for available security tools
+- ✅ Install core Python dependencies
+- ✅ Install frontend dependencies (if Node.js 18+ is available)
+- ✅ Check for available security tools (skipped on Kali)
 - ✅ Create convenient startup scripts
 - ✅ Generate MCP client configuration
+
+### Installation Modes
+
+| Mode | Command | Description |
+|------|---------|-------------|
+| **Development** | `./install.sh` | Standard setup for development |
+| **Offensive** | `./install.sh --with-offensive-tools` | Include pwntools, angr for binary exploitation |
+| **Production** | `./install.sh --production` | Setup with gunicorn for production |
+| **Full Production** | `./install.sh --production --generate-systemd` | Production + systemd service |
+
+### Installer Options
+
+```bash
+./install.sh --help                    # Show all options
+
+# Common options:
+./install.sh --auto-install-system-deps  # Auto-install missing system packages
+./install.sh --with-offensive-tools      # Include pwntools, angr
+./install.sh --production                # Production mode (gunicorn)
+./install.sh --recreate-venv             # Force recreate virtual environment
+./install.sh --skip-frontend             # Skip Node.js/frontend installation
+./install.sh --skip-tool-check           # Skip security tool availability check
+./install.sh --generate-systemd          # Generate systemd service file
+```
 
 ### Quick Commands After Installation
 
 | Command | Description |
 |---------|-------------|
 | `./start-server.sh` | Start the HexStrike API server (port 8888) |
+| `./start-server.sh --production` | Start with gunicorn (production mode) |
+| `./start-server.sh --host=0.0.0.0` | Expose publicly (⚠️ use with caution) |
 | `./start-frontend.sh` | Start the web frontend (port 3000) |
 | `./start-all.sh` | Start both server and frontend |
 | `./start-server.sh --debug` | Start server in debug mode |
 | `./start-server.sh --port=9999` | Start server on custom port |
+
+### CLI Wrapper
+
+HexStrike AI also provides a CLI wrapper for convenience:
+
+```bash
+# Using the CLI wrapper
+python hexstrikeai.py server                   # Start server
+python hexstrikeai.py server --production      # Production mode
+python hexstrikeai.py status                   # Check server status
+python hexstrikeai.py health                   # Health check
+python hexstrikeai.py version                  # Show version
+
+# Or using python -m
+python -m hexstrikeai server
+```
 
 ### MCP Client Configuration
 
@@ -196,6 +239,70 @@ The installer automatically sets up everything you need. After installation, sim
 ./start-all.sh         # Start both
 ```
 
+### Setup Types
+
+#### 🔧 Development Setup (Default)
+
+For local development and testing:
+
+```bash
+./install.sh
+./start-server.sh --debug
+```
+
+Features:
+- Flask development server
+- Debug mode with hot-reloading
+- Local-only binding (127.0.0.1)
+- Core dependencies only
+
+#### 🔥 Offensive Setup (CTF/Binary Exploitation)
+
+For CTF competitions and binary exploitation research:
+
+```bash
+./install.sh --with-offensive-tools
+```
+
+Additional packages:
+- `pwntools` - Binary exploitation framework
+- `angr` - Symbolic execution engine
+- `bcrypt` - Password hashing compatibility
+
+**Note:** These packages have complex dependencies. You may need:
+```bash
+sudo apt install libffi-dev libcapstone-dev  # Ubuntu/Debian
+```
+
+#### 🚀 Production Setup
+
+For production deployments:
+
+```bash
+# Basic production setup
+./install.sh --production
+
+# Full production with systemd service
+./install.sh --production --generate-systemd
+
+# Start in production mode
+./start-server.sh --production
+```
+
+Features:
+- Gunicorn WSGI server with 4 workers
+- Proper signal handling
+- systemd service file generation
+- Production-ready timeouts
+
+To install the systemd service:
+```bash
+sudo cp hexstrike-ai.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable hexstrike-ai
+sudo systemctl start hexstrike-ai
+```
+
 ### Manual Setup (Alternative)
 
 If you prefer manual installation:
@@ -211,8 +318,10 @@ source hexstrike-env/bin/activate  # Linux/Mac
 # hexstrike-env\Scripts\activate   # Windows
 
 # 3. Install Python dependencies
-pip3 install -r requirements.txt
+pip3 install -r requirements-core.txt
 
+# 4. (Optional) Install offensive tools
+pip3 install -r requirements-offensive.txt
 ```
 
 ### Installation and Setting Up Guide for various AI Clients:
@@ -734,6 +843,29 @@ python3 hexstrike_mcp.py --debug
 - AI agents can execute arbitrary security tools - ensure proper oversight
 - Monitor AI agent activities through the real-time dashboard
 - Consider implementing authentication for production deployments
+
+### Runtime Security
+
+**Default Behavior:**
+- Server binds to `127.0.0.1` by default (local access only)
+- Warning displayed when using `--host=0.0.0.0` (public exposure)
+
+**Production Security:**
+```bash
+# Start with local-only access (recommended)
+./start-server.sh
+
+# If you need remote access, use with caution:
+./start-server.sh --host=0.0.0.0
+# ⚠️ WARNING: This exposes the server publicly!
+# Consider using a reverse proxy (nginx) with authentication
+```
+
+**Recommended Production Setup:**
+1. Use gunicorn behind a reverse proxy (nginx/traefik)
+2. Enable HTTPS via the reverse proxy
+3. Implement authentication at the proxy level
+4. Restrict access via firewall rules
 
 ### Legal & Ethical Use
 

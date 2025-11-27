@@ -16,6 +16,10 @@
 
 set -e
 
+# ============================================================================
+# CONFIGURATION
+# ============================================================================
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -31,7 +35,24 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV_DIR="$SCRIPT_DIR/hexstrike-env"
 FRONTEND_DIR="$SCRIPT_DIR/frontend"
 
-# Functions
+# Flags (defaults)
+AUTO_INSTALL_SYSTEM_DEPS=false
+WITH_OFFENSIVE_TOOLS=false
+PRODUCTION_MODE=false
+RECREATE_VENV=false
+SKIP_FRONTEND=false
+SKIP_TOOL_CHECK=false
+GENERATE_SYSTEMD=false
+
+# Detected OS info
+DETECTED_OS=""
+DETECTED_DISTRO=""
+IS_KALI=false
+
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
+
 print_banner() {
     echo -e "${RED}"
     echo "╔═══════════════════════════════════════════════════════════════════════════╗"
@@ -48,6 +69,26 @@ print_banner() {
     echo "║                                                                           ║"
     echo "╚═══════════════════════════════════════════════════════════════════════════╝"
     echo -e "${NC}"
+}
+
+print_usage() {
+    echo "Usage: $0 [OPTIONS]"
+    echo ""
+    echo "Options:"
+    echo "  --auto-install-system-deps  Attempt to install missing system dependencies"
+    echo "  --with-offensive-tools      Install offensive tooling (pwntools, angr)"
+    echo "  --production                Setup for production (gunicorn, systemd service)"
+    echo "  --recreate-venv             Force recreation of the virtual environment"
+    echo "  --skip-frontend             Skip frontend installation"
+    echo "  --skip-tool-check           Skip security tool availability check"
+    echo "  --generate-systemd          Generate systemd service file"
+    echo "  -h, --help                  Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  $0                                  # Standard development installation"
+    echo "  $0 --with-offensive-tools           # Include binary exploitation tools"
+    echo "  $0 --production --generate-systemd  # Production setup with systemd"
+    echo ""
 }
 
 log_info() {
@@ -70,6 +111,14 @@ log_step() {
     echo -e "\n${PURPLE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${CYAN}${BOLD}$1${NC}"
     echo -e "${PURPLE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
+}
+
+abort_with_message() {
+    log_error "$1"
+    echo ""
+    echo -e "${YELLOW}Suggested action:${NC} $2"
+    echo ""
+    exit 1
 }
 
 check_command() {
@@ -96,68 +145,209 @@ check_python_version() {
     return 1
 }
 
-# Main installation process
-main() {
-    print_banner
+# ============================================================================
+# OS DETECTION
+# ============================================================================
+
+detect_os() {
+    log_info "Detecting operating system..."
     
-    log_step "Step 1/6: Checking System Requirements"
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        DETECTED_OS="linux"
+        
+        # Detect specific distro
+        if [ -f /etc/os-release ]; then
+            . /etc/os-release
+            DETECTED_DISTRO="$ID"
+            
+            # Check for Kali Linux
+            if [[ "$ID" == "kali" ]]; then
+                IS_KALI=true
+                log_success "Detected Kali Linux - security tools likely pre-installed"
+            elif [[ "$ID" == "ubuntu" ]] || [[ "$ID" == "debian" ]]; then
+                log_success "Detected $NAME"
+            elif [[ "$ID_LIKE" == *"debian"* ]] || [[ "$ID_LIKE" == *"ubuntu"* ]]; then
+                log_success "Detected Debian-based distribution: $NAME"
+                DETECTED_DISTRO="debian"
+            else
+                log_warning "Detected Linux distribution: $NAME (not officially supported, but may work)"
+            fi
+        else
+            log_warning "Could not detect Linux distribution (/etc/os-release not found)"
+            DETECTED_DISTRO="unknown"
+        fi
+        
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+        DETECTED_OS="macos"
+        DETECTED_DISTRO="macos"
+        log_success "Detected macOS"
+        
+    else
+        DETECTED_OS="unknown"
+        abort_with_message "Unsupported operating system: $OSTYPE" \
+            "HexStrike AI requires Linux (Ubuntu/Debian/Kali) or macOS."
+    fi
+}
+
+# ============================================================================
+# SYSTEM DEPENDENCY CHECKS
+# ============================================================================
+
+check_system_dependencies() {
+    log_step "Checking System Dependencies"
     
-    # Check for Python 3.8+
+    local missing_deps=()
+    
+    # Check Python 3.8+
     log_info "Checking Python version..."
     PYTHON_CMD=""
     for cmd in python3 python python3.11 python3.10 python3.9 python3.8; do
         if PYTHON_CMD=$(check_python_version "$cmd"); then
-            log_success "Found compatible Python: $PYTHON_CMD ($(${PYTHON_CMD} --version))"
+            log_success "Found compatible Python: $PYTHON_CMD ($(${PYTHON_CMD} --version 2>&1))"
             break
         fi
     done
     
     if [ -z "$PYTHON_CMD" ]; then
-        log_error "Python 3.8 or higher is required but not found!"
-        log_info "Please install Python 3.8+ and try again."
-        exit 1
+        missing_deps+=("python3.8+")
     fi
     
-    # Check for pip
-    log_info "Checking pip..."
-    if ! $PYTHON_CMD -m pip --version &> /dev/null; then
-        log_warning "pip not found, attempting to install..."
-        $PYTHON_CMD -m ensurepip --upgrade || {
-            log_error "Failed to install pip. Please install pip manually."
-            exit 1
-        }
-    fi
-    log_success "pip is available"
-    
-    # Check for Node.js and npm (optional for frontend)
-    log_info "Checking Node.js and npm..."
-    NODE_AVAILABLE=false
-    if command -v node &> /dev/null && command -v npm &> /dev/null; then
-        NODE_VERSION=$(node --version)
-        NPM_VERSION=$(npm --version)
-        log_success "Node.js $NODE_VERSION and npm $NPM_VERSION found"
-        NODE_AVAILABLE=true
-    else
-        log_warning "Node.js/npm not found. Frontend will not be installed."
-        log_info "Install Node.js 18+ for the web frontend: https://nodejs.org/"
+    # Check for pip (do NOT assume ensurepip exists)
+    log_info "Checking pip availability..."
+    if [ -n "$PYTHON_CMD" ]; then
+        if ! $PYTHON_CMD -m pip --version &> /dev/null; then
+            # Try to find pip as a standalone command
+            if command -v pip3 &> /dev/null; then
+                log_success "Found pip3 command"
+            elif command -v pip &> /dev/null; then
+                log_success "Found pip command"
+            else
+                missing_deps+=("python3-pip")
+            fi
+        else
+            log_success "pip is available via Python module"
+        fi
     fi
     
-    log_step "Step 2/6: Creating Python Virtual Environment"
+    # Check for venv module (critical - cannot use ensurepip)
+    log_info "Checking venv module..."
+    if [ -n "$PYTHON_CMD" ]; then
+        if ! $PYTHON_CMD -c "import venv" &> /dev/null; then
+            missing_deps+=("python3-venv")
+        else
+            log_success "venv module is available"
+        fi
+    fi
+    
+    # If there are missing dependencies, handle them
+    if [ ${#missing_deps[@]} -gt 0 ]; then
+        echo ""
+        log_error "Missing required system dependencies:"
+        for dep in "${missing_deps[@]}"; do
+            echo -e "  ${RED}✗${NC} $dep"
+        done
+        echo ""
+        
+        if [ "$AUTO_INSTALL_SYSTEM_DEPS" = true ]; then
+            install_system_dependencies "${missing_deps[@]}"
+        else
+            local install_cmd=""
+            case "$DETECTED_DISTRO" in
+                ubuntu|debian|kali)
+                    install_cmd="sudo apt update && sudo apt install -y ${missing_deps[*]}"
+                    ;;
+                fedora)
+                    install_cmd="sudo dnf install -y ${missing_deps[*]}"
+                    ;;
+                macos)
+                    install_cmd="brew install ${missing_deps[*]}"
+                    ;;
+                *)
+                    install_cmd="Install: ${missing_deps[*]}"
+                    ;;
+            esac
+            
+            abort_with_message "Required system dependencies are missing." \
+                "Run: $install_cmd\n   Or re-run with: $0 --auto-install-system-deps"
+        fi
+    fi
+}
+
+install_system_dependencies() {
+    local deps=("$@")
+    log_info "Attempting to install system dependencies: ${deps[*]}"
+    
+    case "$DETECTED_DISTRO" in
+        ubuntu|debian|kali)
+            sudo apt update
+            sudo apt install -y "${deps[@]}" || {
+                abort_with_message "Failed to install system dependencies" \
+                    "Please install manually: sudo apt install -y ${deps[*]}"
+            }
+            ;;
+        fedora)
+            sudo dnf install -y "${deps[@]}" || {
+                abort_with_message "Failed to install system dependencies" \
+                    "Please install manually: sudo dnf install -y ${deps[*]}"
+            }
+            ;;
+        macos)
+            brew install "${deps[@]}" || {
+                abort_with_message "Failed to install system dependencies" \
+                    "Please install manually: brew install ${deps[*]}"
+            }
+            ;;
+        *)
+            abort_with_message "Cannot auto-install on this OS: $DETECTED_DISTRO" \
+                "Please install the following packages manually: ${deps[*]}"
+            ;;
+    esac
+    
+    log_success "System dependencies installed successfully"
+}
+
+# ============================================================================
+# VENV MANAGEMENT
+# ============================================================================
+
+validate_venv_python_version() {
+    if [ -d "$VENV_DIR" ] && [ -f "$VENV_DIR/bin/python" ]; then
+        local venv_version=$("$VENV_DIR/bin/python" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+        local system_version=$($PYTHON_CMD -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+        
+        if [ "$venv_version" != "$system_version" ]; then
+            log_warning "Virtual environment Python version ($venv_version) differs from system ($system_version)"
+            if [ "$RECREATE_VENV" = true ]; then
+                log_info "Recreating virtual environment as requested..."
+                rm -rf "$VENV_DIR"
+            else
+                log_warning "Consider running with --recreate-venv to update the virtual environment"
+            fi
+        fi
+    fi
+}
+
+setup_venv() {
+    log_step "Setting Up Python Virtual Environment"
+    
+    # Validate existing venv version if it exists
+    validate_venv_python_version
     
     if [ -d "$VENV_DIR" ]; then
-        log_warning "Virtual environment already exists at $VENV_DIR"
-        read -p "Do you want to recreate it? (y/N): " recreate
-        if [[ "$recreate" =~ ^[Yy]$ ]]; then
+        if [ "$RECREATE_VENV" = true ]; then
             log_info "Removing existing virtual environment..."
             rm -rf "$VENV_DIR"
         else
-            log_info "Using existing virtual environment"
+            log_info "Using existing virtual environment at $VENV_DIR"
         fi
     fi
     
     if [ ! -d "$VENV_DIR" ]; then
         log_info "Creating virtual environment..."
-        $PYTHON_CMD -m venv "$VENV_DIR"
+        $PYTHON_CMD -m venv "$VENV_DIR" || {
+            abort_with_message "Failed to create virtual environment" \
+                "Ensure python3-venv is installed: sudo apt install python3-venv"
+        }
         log_success "Virtual environment created at $VENV_DIR"
     fi
     
@@ -167,106 +357,233 @@ main() {
         source "$VENV_DIR/bin/activate"
         log_success "Virtual environment activated"
     else
-        log_error "Virtual environment activation script not found at $VENV_DIR/bin/activate"
-        log_info "Please ensure you are running on a Unix-like system (Linux/macOS)"
-        exit 1
+        abort_with_message "Virtual environment activation script not found at $VENV_DIR/bin/activate" \
+            "Please ensure you are running on a Unix-like system (Linux/macOS)"
     fi
-    
-    log_step "Step 3/6: Installing Python Dependencies"
+}
+
+# ============================================================================
+# PYTHON DEPENDENCY INSTALLATION
+# ============================================================================
+
+install_python_dependencies() {
+    log_step "Installing Python Dependencies"
     
     log_info "Upgrading pip..."
     pip install --upgrade pip --progress-bar off 2>&1 | tail -1
     
-    log_info "Installing dependencies from requirements.txt..."
-    if pip install -r "$SCRIPT_DIR/requirements.txt" --progress-bar off 2>&1 | tail -3; then
-        log_success "Python dependencies installed successfully"
+    # Install core dependencies
+    log_info "Installing core dependencies from requirements-core.txt..."
+    if [ -f "$SCRIPT_DIR/requirements-core.txt" ]; then
+        if pip install -r "$SCRIPT_DIR/requirements-core.txt" --progress-bar off 2>&1 | tail -3; then
+            log_success "Core Python dependencies installed successfully"
+        else
+            abort_with_message "Failed to install core Python dependencies" \
+                "Check requirements-core.txt for compatibility issues"
+        fi
     else
-        log_error "Failed to install Python dependencies. Please check requirements.txt"
-        exit 1
+        # Fallback to requirements.txt if split files don't exist
+        log_warning "requirements-core.txt not found, falling back to requirements.txt"
+        if pip install -r "$SCRIPT_DIR/requirements.txt" --progress-bar off 2>&1 | tail -3; then
+            log_success "Python dependencies installed successfully"
+        else
+            abort_with_message "Failed to install Python dependencies" \
+                "Check requirements.txt for compatibility issues"
+        fi
     fi
     
-    log_step "Step 4/6: Installing Frontend Dependencies (Optional)"
+    # Install offensive tools if requested
+    if [ "$WITH_OFFENSIVE_TOOLS" = true ]; then
+        log_info "Installing offensive tooling dependencies from requirements-offensive.txt..."
+        if [ -f "$SCRIPT_DIR/requirements-offensive.txt" ]; then
+            if pip install -r "$SCRIPT_DIR/requirements-offensive.txt" --progress-bar off 2>&1 | tail -3; then
+                log_success "Offensive tooling dependencies installed successfully"
+            else
+                log_warning "Some offensive tooling dependencies failed to install"
+                log_info "These packages have complex dependencies and may require manual installation"
+                log_info "You may need: sudo apt install libffi-dev libcapstone-dev"
+            fi
+        else
+            log_warning "requirements-offensive.txt not found"
+        fi
+    fi
+}
+
+# ============================================================================
+# FRONTEND INSTALLATION
+# ============================================================================
+
+check_frontend_prerequisites() {
+    log_info "Checking Node.js and npm..."
+    NODE_AVAILABLE=false
+    
+    if [ "$SKIP_FRONTEND" = true ]; then
+        log_info "Skipping frontend check (--skip-frontend specified)"
+        return
+    fi
+    
+    if command -v node &> /dev/null && command -v npm &> /dev/null; then
+        NODE_VERSION=$(node --version | sed 's/v//')
+        NPM_VERSION=$(npm --version)
+        NODE_MAJOR=$(echo "$NODE_VERSION" | cut -d. -f1)
+        
+        if [ "$NODE_MAJOR" -ge 18 ]; then
+            log_success "Node.js v$NODE_VERSION and npm $NPM_VERSION found"
+            NODE_AVAILABLE=true
+        else
+            log_warning "Node.js version $NODE_VERSION is below minimum required (18+)"
+            log_info "Frontend installation will be skipped. Install Node.js 18+ for frontend support."
+        fi
+    else
+        log_warning "Node.js/npm not found. Frontend will not be installed."
+        log_info "Install Node.js 18+ for the web frontend: https://nodejs.org/"
+    fi
+}
+
+install_frontend_dependencies() {
+    log_step "Installing Frontend Dependencies"
+    
+    if [ "$SKIP_FRONTEND" = true ]; then
+        log_info "Skipping frontend installation (--skip-frontend specified)"
+        return
+    fi
     
     if [ "$NODE_AVAILABLE" = true ] && [ -d "$FRONTEND_DIR" ]; then
         log_info "Installing frontend dependencies..."
         cd "$FRONTEND_DIR"
         if npm install --loglevel warn 2>&1 | tail -5; then
             log_success "Frontend dependencies installed"
+            FRONTEND_INSTALLED=true
         else
             log_warning "Frontend dependency installation had issues. Check npm output above."
             log_info "You can try running 'cd frontend && npm install' manually later."
+            FRONTEND_INSTALLED=false
         fi
         cd "$SCRIPT_DIR"
     else
         log_info "Skipping frontend installation (Node.js not available or frontend directory missing)"
+        FRONTEND_INSTALLED=false
+    fi
+}
+
+# ============================================================================
+# SECURITY TOOLS CHECK
+# ============================================================================
+
+check_security_tools() {
+    if [ "$SKIP_TOOL_CHECK" = true ]; then
+        log_info "Skipping security tool check (--skip-tool-check specified)"
+        return
     fi
     
-    log_step "Step 5/6: Checking Security Tools Availability"
+    # On Kali Linux, skip this entirely as tools are pre-installed
+    if [ "$IS_KALI" = true ]; then
+        log_step "Security Tools Check (Kali Linux)"
+        log_success "Kali Linux detected - security tools are pre-installed"
+        log_info "Run 'apt list --installed' to see available security tools"
+        return
+    fi
+    
+    log_step "Security Tools Availability (Informational)"
     
     log_info "Checking for installed security tools..."
+    log_info "Note: These tools are optional and can be installed separately."
     echo ""
+    
+    local missing_tools=()
     
     # Essential tools
     echo -e "${BOLD}Essential Network Tools:${NC}"
-    check_command nmap || true
-    check_command masscan || true
-    check_command rustscan || true
+    check_command nmap || missing_tools+=("nmap")
+    check_command masscan || missing_tools+=("masscan")
+    check_command rustscan || true  # Not in apt, skip for auto-install
     
     echo ""
     echo -e "${BOLD}Web Application Tools:${NC}"
-    check_command gobuster || true
-    check_command feroxbuster || true
-    check_command ffuf || true
-    check_command nikto || true
-    check_command nuclei || true
-    check_command sqlmap || true
+    check_command gobuster || missing_tools+=("gobuster")
+    check_command feroxbuster || true  # Not in apt
+    check_command ffuf || true  # Not in apt
+    check_command nikto || missing_tools+=("nikto")
+    check_command nuclei || true  # Not in apt
+    check_command sqlmap || missing_tools+=("sqlmap")
     
     echo ""
     echo -e "${BOLD}Password & Authentication Tools:${NC}"
-    check_command hydra || true
-    check_command john || true
-    check_command hashcat || true
+    check_command hydra || missing_tools+=("hydra")
+    check_command john || missing_tools+=("john")
+    check_command hashcat || missing_tools+=("hashcat")
     
     echo ""
     echo -e "${BOLD}Subdomain & OSINT Tools:${NC}"
-    check_command amass || true
-    check_command subfinder || true
+    check_command amass || true  # Not in apt
+    check_command subfinder || true  # Not in apt
     
     echo ""
     echo -e "${BOLD}SMB & Network Enumeration:${NC}"
-    check_command enum4linux || true
-    check_command smbmap || true
-    check_command netexec || true
+    check_command enum4linux || missing_tools+=("enum4linux")
+    check_command smbmap || missing_tools+=("smbmap")
+    check_command netexec || true  # Not in apt
     
     echo ""
-    log_warning "Note: Missing tools can be installed from your distribution's package manager"
-    log_info "On Kali Linux, most tools are pre-installed"
-    log_info "On Ubuntu/Debian: sudo apt install <tool-name>"
     
-    log_step "Step 6/6: Creating Startup Scripts"
+    if [ ${#missing_tools[@]} -gt 0 ]; then
+        log_info "Some tools are not installed. To install available tools:"
+        case "$DETECTED_DISTRO" in
+            ubuntu|debian)
+                echo -e "  ${YELLOW}sudo apt install ${missing_tools[*]}${NC}"
+                ;;
+            *)
+                echo -e "  ${YELLOW}Install: ${missing_tools[*]}${NC}"
+                ;;
+        esac
+    else
+        log_success "All common security tools are installed"
+    fi
     
-    # Create start-server.sh - uses venv python which points to correct version
-    cat > "$SCRIPT_DIR/start-server.sh" << 'EOF'
+    echo ""
+    log_info "For a complete toolkit, consider using Kali Linux or installing tools from:"
+    log_info "  - Official tool repositories (GitHub)"
+    log_info "  - Go: go install github.com/<tool>@latest"
+    log_info "  - Rust: cargo install <tool>"
+}
+
+# ============================================================================
+# STARTUP SCRIPTS GENERATION
+# ============================================================================
+
+create_startup_scripts() {
+    log_step "Creating Startup Scripts"
+    
+    # Create start-server.sh with production support
+    cat > "$SCRIPT_DIR/start-server.sh" << 'EOFSERVER'
 #!/bin/bash
 # HexStrike AI - Start Server Script
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV_DIR="$SCRIPT_DIR/hexstrike-env"
 
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
 # Activate virtual environment
 if [ -f "$VENV_DIR/bin/activate" ]; then
     source "$VENV_DIR/bin/activate"
 else
-    echo "Error: Virtual environment not found. Run install.sh first."
+    echo -e "${RED}Error: Virtual environment not found. Run install.sh first.${NC}"
     exit 1
 fi
 
-# Use the virtual environment's python (correct version is ensured by installer)
+# Use the virtual environment's python
 PYTHON_CMD="$VENV_DIR/bin/python"
 
 # Parse arguments
-PORT="${1:-8888}"
+PORT="8888"
+HOST="127.0.0.1"
 DEBUG=""
+PRODUCTION=false
 
 for arg in "$@"; do
     case $arg in
@@ -276,99 +593,217 @@ for arg in "$@"; do
         --port=*)
             PORT="${arg#*=}"
             ;;
+        --host=*)
+            HOST="${arg#*=}"
+            ;;
+        --production)
+            PRODUCTION=true
+            ;;
     esac
 done
 
-echo "🚀 Starting HexStrike AI Server on port $PORT..."
-"$PYTHON_CMD" "$SCRIPT_DIR/hexstrike_server.py" --port "$PORT" $DEBUG
-EOF
+# Warn if binding to 0.0.0.0
+if [ "$HOST" = "0.0.0.0" ]; then
+    echo -e "${YELLOW}⚠️  WARNING: Server will be exposed publicly on all interfaces!${NC}"
+    echo -e "${YELLOW}   Consider using --host=127.0.0.1 for local-only access.${NC}"
+    echo ""
+fi
+
+if [ "$PRODUCTION" = true ]; then
+    echo "🚀 Starting HexStrike AI Server in PRODUCTION mode on $HOST:$PORT..."
+    
+    # Check if gunicorn is available
+    if ! "$PYTHON_CMD" -c "import gunicorn" &> /dev/null; then
+        echo -e "${YELLOW}gunicorn not found, using built-in server${NC}"
+        "$PYTHON_CMD" "$SCRIPT_DIR/hexstrike_server.py" --port "$PORT"
+    else
+        # Use gunicorn for production
+        exec "$VENV_DIR/bin/gunicorn" \
+            --bind "$HOST:$PORT" \
+            --workers 4 \
+            --timeout 300 \
+            --access-logfile - \
+            --error-logfile - \
+            "hexstrike_server:app"
+    fi
+else
+    echo "🚀 Starting HexStrike AI Server on $HOST:$PORT..."
+    "$PYTHON_CMD" "$SCRIPT_DIR/hexstrike_server.py" --port "$PORT" $DEBUG
+fi
+EOFSERVER
     chmod +x "$SCRIPT_DIR/start-server.sh"
     log_success "Created start-server.sh"
     
-    # Create start-frontend.sh
+    # Create start-frontend.sh with proper checks
     if [ -d "$FRONTEND_DIR" ]; then
-        cat > "$SCRIPT_DIR/start-frontend.sh" << 'EOF'
+        cat > "$SCRIPT_DIR/start-frontend.sh" << 'EOFFRONTEND'
 #!/bin/bash
 # HexStrike AI - Start Frontend Script
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FRONTEND_DIR="$SCRIPT_DIR/frontend"
 
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+# Check Node.js is available
+if ! command -v node &> /dev/null; then
+    echo -e "${RED}Error: Node.js is not installed.${NC}"
+    echo -e "${YELLOW}Install Node.js 18+ from: https://nodejs.org/${NC}"
+    exit 1
+fi
+
+# Check node_modules exists
 if [ ! -d "$FRONTEND_DIR/node_modules" ]; then
-    echo "Error: Frontend dependencies not installed. Run install.sh first."
+    echo -e "${RED}Error: Frontend dependencies not installed.${NC}"
+    echo -e "${YELLOW}Run: cd frontend && npm install${NC}"
     exit 1
 fi
 
 cd "$FRONTEND_DIR"
 echo "🌐 Starting HexStrike AI Frontend on http://localhost:3000..."
 npm run dev
-EOF
+EOFFRONTEND
         chmod +x "$SCRIPT_DIR/start-frontend.sh"
         log_success "Created start-frontend.sh"
     fi
     
-    # Create start-all.sh
-    cat > "$SCRIPT_DIR/start-all.sh" << 'EOF'
+    # Create improved start-all.sh with health checks and graceful shutdown
+    cat > "$SCRIPT_DIR/start-all.sh" << 'EOFALL'
 #!/bin/bash
 # HexStrike AI - Start All Services Script
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-echo "🚀 Starting HexStrike AI - All Services"
-echo ""
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+# Track PIDs
+SERVER_PID=""
+FRONTEND_PID=""
+
+# Graceful shutdown handler
+cleanup() {
+    echo ""
+    echo -e "${YELLOW}Stopping services...${NC}"
+    
+    if [ -n "$FRONTEND_PID" ] && kill -0 $FRONTEND_PID 2>/dev/null; then
+        echo "Stopping frontend (PID: $FRONTEND_PID)..."
+        kill $FRONTEND_PID 2>/dev/null
+        wait $FRONTEND_PID 2>/dev/null
+    fi
+    
+    if [ -n "$SERVER_PID" ] && kill -0 $SERVER_PID 2>/dev/null; then
+        echo "Stopping backend server (PID: $SERVER_PID)..."
+        kill $SERVER_PID 2>/dev/null
+        wait $SERVER_PID 2>/dev/null
+    fi
+    
+    echo -e "${GREEN}All services stopped.${NC}"
+    exit 0
+}
+
+# Set up trap for cleanup on SIGINT and SIGTERM
+trap cleanup SIGINT SIGTERM
+
+# Health check function
+check_server_health() {
+    local max_attempts=10
+    local attempt=1
+    
+    while [ $attempt -le $max_attempts ]; do
+        if curl -s -o /dev/null -w "%{http_code}" http://localhost:8888/health | grep -q "200"; then
+            return 0
+        fi
+        sleep 1
+        attempt=$((attempt + 1))
+    done
+    return 1
+}
+
+echo -e "${CYAN}"
+echo "╔═══════════════════════════════════════════════════════════════╗"
+echo "║           🚀 Starting HexStrike AI - All Services             ║"
+echo "╚═══════════════════════════════════════════════════════════════╝"
+echo -e "${NC}"
+
+# Check if frontend can be started
+FRONTEND_AVAILABLE=false
+if [ -f "$SCRIPT_DIR/start-frontend.sh" ]; then
+    # Check Node.js
+    if command -v node &> /dev/null; then
+        # Check node_modules
+        if [ -d "$SCRIPT_DIR/frontend/node_modules" ]; then
+            FRONTEND_AVAILABLE=true
+        else
+            echo -e "${YELLOW}⚠️  Frontend dependencies not installed. Skipping frontend.${NC}"
+        fi
+    else
+        echo -e "${YELLOW}⚠️  Node.js not found. Skipping frontend.${NC}"
+    fi
+fi
 
 # Start server in background
-echo "📡 Starting backend server..."
+echo -e "${CYAN}📡 Starting backend server...${NC}"
 "$SCRIPT_DIR/start-server.sh" &
 SERVER_PID=$!
 
-# Wait for server to start
-sleep 3
-
-# Check if server is running
-if ! kill -0 $SERVER_PID 2>/dev/null; then
-    echo "❌ Backend server failed to start"
-    exit 1
+# Health check for server
+echo -n "   Waiting for server to be ready"
+if check_server_health; then
+    echo ""
+    echo -e "${GREEN}✅ Backend server running on http://localhost:8888${NC}"
+else
+    echo ""
+    echo -e "${RED}❌ Backend server failed to start or is not responding${NC}"
+    cleanup
 fi
 
-echo "✅ Backend server running on http://localhost:8888"
-
 # Start frontend if available
-if [ -f "$SCRIPT_DIR/start-frontend.sh" ]; then
+if [ "$FRONTEND_AVAILABLE" = true ]; then
     echo ""
-    echo "🌐 Starting frontend..."
+    echo -e "${CYAN}🌐 Starting frontend...${NC}"
     "$SCRIPT_DIR/start-frontend.sh" &
     FRONTEND_PID=$!
     
-    echo ""
-    echo "═══════════════════════════════════════════════════════════"
-    echo "  HexStrike AI is running!"
-    echo ""
-    echo "  📡 Backend API:    http://localhost:8888"
-    echo "  🌐 Frontend:       http://localhost:3000"
-    echo ""
-    echo "  Press Ctrl+C to stop all services"
-    echo "═══════════════════════════════════════════════════════════"
-else
-    echo ""
-    echo "═══════════════════════════════════════════════════════════"
-    echo "  HexStrike AI Server is running!"
-    echo ""
-    echo "  📡 Backend API:    http://localhost:8888"
-    echo ""
-    echo "  Press Ctrl+C to stop the server"
-    echo "═══════════════════════════════════════════════════════════"
+    # Wait a bit for frontend to initialize
+    sleep 3
+    
+    if kill -0 $FRONTEND_PID 2>/dev/null; then
+        echo -e "${GREEN}✅ Frontend starting on http://localhost:3000${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Frontend failed to start, continuing with backend only${NC}"
+        FRONTEND_PID=""
+    fi
 fi
 
-# Wait for Ctrl+C
-trap "echo ''; echo 'Stopping services...'; kill $SERVER_PID 2>/dev/null; [ -n \"$FRONTEND_PID\" ] && kill $FRONTEND_PID 2>/dev/null; exit 0" INT
+echo ""
+echo -e "${GREEN}═══════════════════════════════════════════════════════════${NC}"
+echo -e "${GREEN}  HexStrike AI is running!${NC}"
+echo ""
+echo -e "  ${CYAN}📡 Backend API:${NC}    http://localhost:8888"
+if [ "$FRONTEND_AVAILABLE" = true ] && [ -n "$FRONTEND_PID" ]; then
+    echo -e "  ${CYAN}🌐 Frontend:${NC}       http://localhost:3000"
+fi
+echo ""
+echo -e "  Press ${YELLOW}Ctrl+C${NC} to stop all services"
+echo -e "${GREEN}═══════════════════════════════════════════════════════════${NC}"
+
+# Wait for processes
 wait
-EOF
+EOFALL
     chmod +x "$SCRIPT_DIR/start-all.sh"
-    log_success "Created start-all.sh"
+    log_success "Created start-all.sh (with health checks and graceful shutdown)"
     
-    # Generate MCP configuration - uses venv python (which symlinks to correct version)
-    cat > "$SCRIPT_DIR/hexstrike-mcp-config.json" << EOF
+    # Generate MCP configuration
+    cat > "$SCRIPT_DIR/hexstrike-mcp-config.json" << EOFMCP
 {
   "mcpServers": {
     "hexstrike-ai": {
@@ -384,13 +819,58 @@ EOF
     }
   }
 }
-EOF
+EOFMCP
     log_success "Created hexstrike-mcp-config.json (MCP client configuration)"
+}
+
+# ============================================================================
+# SYSTEMD SERVICE GENERATION
+# ============================================================================
+
+generate_systemd_service() {
+    if [ "$GENERATE_SYSTEMD" != true ]; then
+        return
+    fi
     
-    # Deactivate virtual environment
-    deactivate
+    log_step "Generating systemd Service File"
     
-    # Print summary
+    local service_file="$SCRIPT_DIR/hexstrike-ai.service"
+    local user=$(whoami)
+    
+    cat > "$service_file" << EOFSYSTEMD
+[Unit]
+Description=HexStrike AI - Cybersecurity Automation Platform
+After=network.target
+
+[Service]
+Type=simple
+User=$user
+WorkingDirectory=$SCRIPT_DIR
+Environment=PATH=$VENV_DIR/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=$VENV_DIR/bin/gunicorn --bind 127.0.0.1:8888 --workers 4 --timeout 300 hexstrike_server:app
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOFSYSTEMD
+    
+    log_success "Created hexstrike-ai.service"
+    echo ""
+    log_info "To install the systemd service, run:"
+    echo -e "  ${YELLOW}sudo cp $service_file /etc/systemd/system/${NC}"
+    echo -e "  ${YELLOW}sudo systemctl daemon-reload${NC}"
+    echo -e "  ${YELLOW}sudo systemctl enable hexstrike-ai${NC}"
+    echo -e "  ${YELLOW}sudo systemctl start hexstrike-ai${NC}"
+}
+
+# ============================================================================
+# PRINT SUMMARY
+# ============================================================================
+
+print_summary() {
     echo -e "\n${GREEN}"
     echo "╔═══════════════════════════════════════════════════════════════════════════╗"
     echo "║                                                                           ║"
@@ -403,16 +883,41 @@ EOF
     echo ""
     echo -e "  ${CYAN}1.${NC} Start the HexStrike AI server:"
     echo -e "     ${YELLOW}./start-server.sh${NC}"
+    if [ "$PRODUCTION_MODE" = true ]; then
+        echo -e "     ${YELLOW}./start-server.sh --production${NC}  (gunicorn)"
+    fi
     echo ""
-    echo -e "  ${CYAN}2.${NC} Start the frontend (optional):"
-    echo -e "     ${YELLOW}./start-frontend.sh${NC}"
-    echo ""
-    echo -e "  ${CYAN}3.${NC} Or start everything at once:"
+    
+    if [ -f "$SCRIPT_DIR/start-frontend.sh" ] && [ "$FRONTEND_INSTALLED" = true ]; then
+        echo -e "  ${CYAN}2.${NC} Start the frontend:"
+        echo -e "     ${YELLOW}./start-frontend.sh${NC}"
+        echo ""
+        echo -e "  ${CYAN}3.${NC} Or start everything at once:"
+    else
+        echo -e "  ${CYAN}2.${NC} Or start with:"
+    fi
     echo -e "     ${YELLOW}./start-all.sh${NC}"
     echo ""
+    
+    echo -e "${BOLD}Server Options:${NC}"
+    echo -e "  ${YELLOW}./start-server.sh --debug${NC}              # Debug mode"
+    echo -e "  ${YELLOW}./start-server.sh --port=9999${NC}          # Custom port"
+    echo -e "  ${YELLOW}./start-server.sh --host=0.0.0.0${NC}       # Expose publicly (⚠️ use with caution)"
+    if [ "$PRODUCTION_MODE" = true ]; then
+        echo -e "  ${YELLOW}./start-server.sh --production${NC}         # Production mode (gunicorn)"
+    fi
+    echo ""
+    
     echo -e "${BOLD}MCP Client Configuration:${NC}"
     echo -e "  Copy the content of ${YELLOW}hexstrike-mcp-config.json${NC} to your MCP client config."
     echo ""
+    
+    if [ "$WITH_OFFENSIVE_TOOLS" = true ]; then
+        echo -e "${BOLD}Offensive Tools:${NC}"
+        echo -e "  Binary exploitation tools (pwntools, angr) are installed."
+        echo ""
+    fi
+    
     echo -e "${BOLD}Documentation:${NC}"
     echo -e "  📖 README.md          - Full documentation"
     echo -e "  📖 FRONTEND_SETUP.md  - Frontend setup guide"
@@ -421,5 +926,110 @@ EOF
     echo ""
 }
 
-# Run main function
+# ============================================================================
+# ARGUMENT PARSING
+# ============================================================================
+
+parse_arguments() {
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --auto-install-system-deps)
+                AUTO_INSTALL_SYSTEM_DEPS=true
+                shift
+                ;;
+            --with-offensive-tools)
+                WITH_OFFENSIVE_TOOLS=true
+                shift
+                ;;
+            --production)
+                PRODUCTION_MODE=true
+                shift
+                ;;
+            --recreate-venv)
+                RECREATE_VENV=true
+                shift
+                ;;
+            --skip-frontend)
+                SKIP_FRONTEND=true
+                shift
+                ;;
+            --skip-tool-check)
+                SKIP_TOOL_CHECK=true
+                shift
+                ;;
+            --generate-systemd)
+                GENERATE_SYSTEMD=true
+                PRODUCTION_MODE=true  # systemd implies production
+                shift
+                ;;
+            -h|--help)
+                print_usage
+                exit 0
+                ;;
+            *)
+                log_error "Unknown option: $1"
+                print_usage
+                exit 1
+                ;;
+        esac
+    done
+}
+
+# ============================================================================
+# MAIN INSTALLATION PROCESS
+# ============================================================================
+
+main() {
+    # Parse command line arguments first
+    parse_arguments "$@"
+    
+    # Show banner
+    print_banner
+    
+    # Show current mode
+    log_info "Installation mode: $([ "$PRODUCTION_MODE" = true ] && echo "Production" || echo "Development")"
+    [ "$WITH_OFFENSIVE_TOOLS" = true ] && log_info "Including offensive tooling (pwntools, angr)"
+    [ "$SKIP_FRONTEND" = true ] && log_info "Frontend installation will be skipped"
+    echo ""
+    
+    # Step 1: Detect OS
+    log_step "Step 1/7: Detecting Operating System"
+    detect_os
+    
+    # Step 2: Check system dependencies
+    log_step "Step 2/7: Checking System Dependencies"
+    check_system_dependencies
+    check_frontend_prerequisites
+    
+    # Step 3: Setup venv
+    log_step "Step 3/7: Setting Up Python Virtual Environment"
+    setup_venv
+    
+    # Step 4: Install Python dependencies
+    log_step "Step 4/7: Installing Python Dependencies"
+    install_python_dependencies
+    
+    # Step 5: Install frontend (if applicable)
+    log_step "Step 5/7: Installing Frontend Dependencies"
+    install_frontend_dependencies
+    
+    # Step 6: Check security tools
+    log_step "Step 6/7: Checking Security Tools"
+    check_security_tools
+    
+    # Step 7: Create startup scripts
+    log_step "Step 7/7: Creating Startup Scripts"
+    create_startup_scripts
+    
+    # Optional: Generate systemd service
+    generate_systemd_service
+    
+    # Deactivate virtual environment
+    deactivate 2>/dev/null || true
+    
+    # Print summary
+    print_summary
+}
+
+# Run main function with all arguments
 main "$@"
