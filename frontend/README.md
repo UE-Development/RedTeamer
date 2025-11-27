@@ -26,7 +26,7 @@ Modern React + TypeScript frontend with Agent Interface for HexStrike AI v6.0.
 
 ## Prerequisites
 
-- Node.js 18+ and npm
+- Node.js 20+ and npm (required for Vite 7.x)
 - HexStrike AI backend server running on port 8889
 
 ## Installation

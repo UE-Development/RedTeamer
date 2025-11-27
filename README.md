@@ -43,7 +43,7 @@ cd hexstrike-ai
 - ✅ Check system requirements (Python 3.8+, pip, venv)
 - ✅ Create a Python virtual environment
 - ✅ Install core Python dependencies
-- ✅ Install frontend dependencies (if Node.js 18+ is available)
+- ✅ Install frontend dependencies (if Node.js 20+ is available)
 - ✅ Check for available security tools (skipped on Kali)
 - ✅ Create convenient startup scripts
 - ✅ Generate MCP client configuration
@@ -859,7 +859,7 @@ AI Agent: "Thank you for clarifying ownership and intent. To proceed with a pene
    
    If you see `Error: Frontend dependencies not installed`:
    ```bash
-   # Install Node.js 18+ first, then:
+   # Install Node.js 20+ first (Vite 7.x requires Node.js 20.19+ or 22.12+), then:
    cd frontend
    npm install
    cd ..
