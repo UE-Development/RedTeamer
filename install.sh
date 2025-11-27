@@ -65,7 +65,7 @@ print_banner() {
     echo "║  ██║  ██║███████╗██╔╝ ██╗███████║   ██║   ██║  ██║██║██║  ██╗███████╗    ║"
     echo "║  ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝╚═╝  ╚═╝╚══════╝    ║"
     echo "║                                                                           ║"
-    echo "║            ${BOLD}HexStrike AI v6.0 - Auto Installer${NC}${RED}                            ║"
+    echo -e "║            ${BOLD}HexStrike AI v6.0 - Auto Installer${NC}${RED}                            ║"
     echo "║                  AI-Powered Cybersecurity Platform                        ║"
     echo "║                                                                           ║"
     echo "╚═══════════════════════════════════════════════════════════════════════════╝"

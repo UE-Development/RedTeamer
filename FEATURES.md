@@ -1079,6 +1079,59 @@ Frontend                WebSocket Server              Backend
 
 ## 🔒 Security Considerations
 
+### External Access via IP
+
+The frontend is designed to be accessible externally via IP address for remote security assessments and team collaboration. To enable secure external access:
+
+#### Requirements for External Deployment
+
+1. **Secure Web Server**: A production-grade web server (NGINX, Apache, or Caddy) is required for external access
+2. **TLS/SSL Certificates**: HTTPS must be enabled with valid SSL certificates (Let's Encrypt recommended)
+3. **Reverse Proxy Configuration**: The web server should proxy requests to the backend API
+4. **Firewall Rules**: Only required ports (443 for HTTPS, 8888 for API) should be exposed
+
+#### Recommended Setup for External Access
+
+```bash
+# Example: Bind server to all interfaces for external access
+./start-server.sh --host=0.0.0.0 --port=8888 --production
+
+# Use with NGINX as a secure reverse proxy (recommended)
+```
+
+```nginx
+# Example NGINX configuration for secure external access
+server {
+    listen 443 ssl http2;
+    server_name hexstrike.yourdomain.com;
+
+    ssl_certificate /path/to/fullchain.pem;
+    ssl_certificate_key /path/to/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    location /api {
+        proxy_pass http://127.0.0.1:8888;
+        proxy_http_version 1.1;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header Host $host;
+    }
+}
+```
+
+> ⚠️ **Security Warning**: Never expose the frontend or API directly to the internet without a secure reverse proxy and proper TLS configuration.
+
+---
+
 ### Frontend Security
 
 #### 1. **Authentication & Authorization**
