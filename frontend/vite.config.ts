@@ -6,6 +6,9 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 3000,
+    // Bind to all interfaces to allow external access (required for production mode)
+    // This enables access via http://ip:3000 from other devices on the network
+    host: '0.0.0.0',
     proxy: {
       '/api': {
         target: 'http://localhost:8888',
