@@ -79,7 +79,7 @@ The frontend foundation has been successfully implemented based on FEATURES.md s
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js 18+ and npm
+- Node.js 20+ and npm
 - HexStrike AI backend running on port 8889
 
 ### Installation
