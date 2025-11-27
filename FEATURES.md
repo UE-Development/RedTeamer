@@ -1899,10 +1899,15 @@ HexStrike AI now supports running as a persistent system service that automatica
 #### Usage
 
 ```bash
-# Generate systemd service files
+# Option 1: Automatic installation (recommended)
+# Generates, installs, enables, and starts all services automatically
+./install.sh --install-systemd
+
+# Option 2: Manual installation
+# Generate systemd service files only
 ./install.sh --generate-systemd
 
-# Install and enable services
+# Then manually install and enable services
 sudo cp hexstrike-ai-backend.service /etc/systemd/system/
 sudo cp hexstrike-ai-frontend.service /etc/systemd/system/
 sudo cp hexstrike-ai-mcp.service /etc/systemd/system/
@@ -2009,6 +2014,7 @@ HexStrike AI now includes SQLite database support for persistent storage of all 
 
 #### Features
 
+- **Automatic Initialization**: Database is automatically initialized during `./install.sh` and `./start-all.sh`
 - **Settings Persistence**: All application settings stored persistently
 - **User Management**: User accounts with preferences and session management
 - **Project Management**: Create and manage security assessment projects
