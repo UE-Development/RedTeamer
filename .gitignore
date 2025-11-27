@@ -50,6 +50,7 @@ start-server.sh
 start-frontend.sh
 start-all.sh
 hexstrike-mcp-config.json
+hexstrike-ai.service
 
 # OS specific
 .DS_Store
