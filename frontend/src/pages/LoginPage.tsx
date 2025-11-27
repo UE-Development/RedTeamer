@@ -58,11 +58,18 @@ const LoginPage = () => {
     setError(null);
 
     try {
-      // Simulate authentication - in production, this would call the backend
+      // Simulate authentication - in production, this would call the backend API
+      // This is a demo implementation only - real authentication should be handled server-side
       await new Promise((resolve) => setTimeout(resolve, 1500));
 
-      // Demo credentials for testing
-      if (credentials.email === 'admin@hexstrike.ai' && credentials.password === 'admin') {
+      // Demo mode: Accept any credentials for development/testing
+      // In production, replace with actual API call to backend authentication service
+      const isDemoMode = import.meta.env.DEV || !import.meta.env.VITE_API_URL;
+      const isValidCredentials = isDemoMode 
+        ? (credentials.email === 'admin@hexstrike.ai' && credentials.password === 'admin')
+        : false; // In production, this would be validated by backend
+
+      if (isValidCredentials) {
         // Store auth token
         const token = btoa(`${credentials.email}:${Date.now()}`);
         if (credentials.rememberMe) {

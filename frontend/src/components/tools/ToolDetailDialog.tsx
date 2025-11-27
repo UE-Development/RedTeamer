@@ -393,7 +393,10 @@ const ToolDetailDialog = ({ open, onClose, tool, onExecute }: ToolDetailDialogPr
         <Button
           variant="outlined"
           startIcon={<SaveIcon />}
-          onClick={() => console.log('Saving configuration:', parameters)}
+          onClick={() => {
+            // TODO: Implement configuration persistence
+            onClose();
+          }}
         >
           Save Config
         </Button>
