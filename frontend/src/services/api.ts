@@ -296,6 +296,36 @@ class ApiClient {
     const response = await this.client.post('/api/config/generate-api-key');
     return response.data;
   }
+
+  // ============================================================================
+  // System Resources & Monitoring
+  // ============================================================================
+
+  /**
+   * Get current system resource usage (CPU, memory, disk, network)
+   * This returns live data from the server
+   */
+  async getResourceUsage(): Promise<ApiResponse> {
+    const response = await this.client.get('/api/process/resource-usage');
+    return response.data;
+  }
+
+  /**
+   * Get performance dashboard data including resource usage, process pool stats,
+   * cache stats, and system health
+   */
+  async getPerformanceDashboard(): Promise<ApiResponse> {
+    const response = await this.client.get('/api/process/performance-dashboard');
+    return response.data;
+  }
+
+  /**
+   * Get process health check with comprehensive system stats
+   */
+  async getProcessHealthCheck(): Promise<ApiResponse> {
+    const response = await this.client.get('/api/process/health-check');
+    return response.data;
+  }
 }
 
 // Export singleton instance

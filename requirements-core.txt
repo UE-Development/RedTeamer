@@ -10,6 +10,7 @@
 # CORE FRAMEWORK DEPENDENCIES
 # ============================================================================
 flask>=2.3.0,<4.0.0             # Web framework for API server
+flask-cors>=4.0.0,<7.0.0        # CORS support for frontend development
 requests>=2.31.0,<3.0.0         # HTTP library
 psutil>=5.9.0,<6.0.0            # System utilities
 fastmcp>=0.2.0,<1.0.0           # MCP framework for AI agent communication

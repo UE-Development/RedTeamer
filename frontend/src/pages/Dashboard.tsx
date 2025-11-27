@@ -68,6 +68,28 @@ interface RealVulnerability {
   cvss: number;
 }
 
+// Resource usage data from backend
+interface ResourceUsage {
+  cpu_percent: number;
+  memory_percent: number;
+  disk_percent: number;
+  memory_available_gb?: number;
+  disk_free_gb?: number;
+  network_bytes_sent?: number;
+  network_bytes_recv?: number;
+  timestamp?: number;
+}
+
+// Default resource values
+const DEFAULT_RESOURCES: ResourceUsage = {
+  cpu_percent: 0,
+  memory_percent: 0,
+  disk_percent: 0,
+};
+
+// Resource update interval in milliseconds (5 seconds for live updates)
+const RESOURCE_UPDATE_INTERVAL = 5000;
+
 const Dashboard = () => {
   const dispatch = useAppDispatch();
   const metrics = useAppSelector((state) => state.dashboard.metrics);
@@ -77,6 +99,38 @@ const Dashboard = () => {
   const [realScans, setRealScans] = useState<RealScan[]>([]);
   const [realVulns, setRealVulns] = useState<RealVulnerability[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  // Live resource usage state
+  const [resourceUsage, setResourceUsage] = useState<ResourceUsage>(DEFAULT_RESOURCES);
+  const [resourceError, setResourceError] = useState<string | null>(null);
+
+  // Fetch live resource usage from backend
+  const fetchResourceUsage = useCallback(async () => {
+    try {
+      // The response from the backend includes current_usage directly
+      const response = await apiClient.getResourceUsage() as {
+        success: boolean;
+        current_usage?: ResourceUsage;
+        usage_trends?: unknown;
+        timestamp?: string;
+      };
+      if (response.success && response.current_usage) {
+        setResourceUsage({
+          cpu_percent: response.current_usage.cpu_percent ?? 0,
+          memory_percent: response.current_usage.memory_percent ?? 0,
+          disk_percent: response.current_usage.disk_percent ?? 0,
+          memory_available_gb: response.current_usage.memory_available_gb,
+          disk_free_gb: response.current_usage.disk_free_gb,
+          network_bytes_sent: response.current_usage.network_bytes_sent,
+          network_bytes_recv: response.current_usage.network_bytes_recv,
+          timestamp: response.current_usage.timestamp,
+        });
+        setResourceError(null);
+      }
+    } catch (error) {
+      console.warn('Failed to fetch resource usage:', error instanceof Error ? error.message : 'Unknown error');
+      setResourceError('Unable to fetch live resource data');
+    }
+  }, []);
 
   // Fetch real data from backend
   const fetchRealData = useCallback(async () => {
@@ -84,11 +138,14 @@ const Dashboard = () => {
     
     setIsLoading(true);
     try {
-      // Try to fetch real data from backend
+      // Try to fetch real data from backend including resource usage
       const [scansResponse, vulnsResponse] = await Promise.allSettled([
         apiClient.listScans(),
         apiClient.listVulnerabilities(),
       ]);
+      
+      // Also fetch resource usage
+      await fetchResourceUsage();
       
       // Process scans response
       if (scansResponse.status === 'fulfilled' && scansResponse.value?.data) {
@@ -113,7 +170,20 @@ const Dashboard = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [mockDataEnabled, dispatch]);
+  }, [mockDataEnabled, dispatch, fetchResourceUsage]);
+
+  // Set up interval for live resource updates (every 5 seconds)
+  useEffect(() => {
+    // Always fetch resource usage when component mounts, regardless of mock mode
+    // This allows showing live system data even in demo mode
+    fetchResourceUsage();
+    
+    // Set up interval for live updates
+    const intervalId = setInterval(fetchResourceUsage, RESOURCE_UPDATE_INTERVAL);
+    
+    // Cleanup interval on unmount
+    return () => clearInterval(intervalId);
+  }, [fetchResourceUsage]);
 
   useEffect(() => {
     if (mockDataEnabled) {
@@ -146,6 +216,9 @@ const Dashboard = () => {
 
   // Refresh data handler
   const handleRefresh = () => {
+    // Always refresh resource usage for live data
+    fetchResourceUsage();
+    
     if (mockDataEnabled) {
       dispatch(
         setMetrics({
@@ -306,7 +379,14 @@ const Dashboard = () => {
               <VulnerabilityTrendChart height={280} data={mockDataEnabled ? undefined : []} />
             </Grid>
             <Grid size={{ xs: 12, lg: 4 }}>
-              <ResourceUsageGauge cpu={mockDataEnabled ? 45 : 0} memory={mockDataEnabled ? 67 : 0} disk={mockDataEnabled ? 32 : 0} height={220} />
+              <ResourceUsageGauge 
+                cpu={resourceUsage.cpu_percent} 
+                memory={resourceUsage.memory_percent} 
+                disk={resourceUsage.disk_percent} 
+                height={220}
+                isLive={!resourceError}
+                lastUpdated={resourceUsage.timestamp ? new Date(resourceUsage.timestamp * 1000) : undefined}
+              />
             </Grid>
           </Grid>
         )}

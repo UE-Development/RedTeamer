@@ -40,6 +40,7 @@ import venv
 import zipfile
 from pathlib import Path
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import psutil
 import signal
 import requests
@@ -93,6 +94,20 @@ logger = logging.getLogger(__name__)
 # Flask app configuration
 app = Flask(__name__)
 app.config['JSON_SORT_KEYS'] = False
+
+# Enable CORS for frontend development (allow localhost:3000)
+# In production, this should be configured to only allow specific origins
+CORS(app, resources={
+    r"/api/*": {
+        "origins": ["http://localhost:3000", "http://127.0.0.1:3000"],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"]
+    },
+    r"/health": {
+        "origins": ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8889", "http://127.0.0.1:8889"],
+        "methods": ["GET"]
+    }
+})
 
 # API Configuration
 API_PORT = int(os.environ.get('HEXSTRIKE_PORT', 8889))
