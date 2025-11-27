@@ -24,9 +24,10 @@ import BuildIcon from '@mui/icons-material/Build';
 import SearchIcon from '@mui/icons-material/Search';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import { ToolCard, ToolDetailDialog } from '../components/tools';
+import { useAppSelector } from '../store';
 import type { Tool } from '../types';
 
-// Mock tools data based on FEATURES.md
+// Mock tools data for demo mode
 const MOCK_TOOLS: Tool[] = [
   // Network Reconnaissance (25+ tools)
   {
@@ -263,6 +264,7 @@ const MOCK_TOOLS: Tool[] = [
 
 
 const ToolsPage = () => {
+  const mockDataEnabled = useAppSelector((state) => state.settings.developer.mockDataEnabled);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [showInstalledOnly, setShowInstalledOnly] = useState(false);
@@ -275,8 +277,11 @@ const ToolsPage = () => {
     severity: 'info',
   });
 
+  // Get tools based on mock data setting
+  const tools = mockDataEnabled ? MOCK_TOOLS : [];
+
   const filteredTools = useMemo(() => {
-    return MOCK_TOOLS.filter((tool) => {
+    return tools.filter((tool) => {
       const matchesSearch =
         tool.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         tool.description.toLowerCase().includes(searchQuery.toLowerCase());
@@ -285,7 +290,7 @@ const ToolsPage = () => {
 
       return matchesSearch && matchesCategory && matchesInstalled;
     });
-  }, [searchQuery, selectedCategory, showInstalledOnly]);
+  }, [tools, searchQuery, selectedCategory, showInstalledOnly]);
 
   const handleLaunchTool = (tool: Tool) => {
     setSelectedTool(tool);
@@ -315,14 +320,14 @@ const ToolsPage = () => {
   };
 
   const toolStats = {
-    total: MOCK_TOOLS.length,
-    installed: MOCK_TOOLS.filter((t) => t.installed).length,
-    network: MOCK_TOOLS.filter((t) => t.category === 'network').length,
-    web: MOCK_TOOLS.filter((t) => t.category === 'web').length,
-    binary: MOCK_TOOLS.filter((t) => t.category === 'binary').length,
-    cloud: MOCK_TOOLS.filter((t) => t.category === 'cloud').length,
-    ctf: MOCK_TOOLS.filter((t) => t.category === 'ctf').length,
-    osint: MOCK_TOOLS.filter((t) => t.category === 'osint').length,
+    total: tools.length,
+    installed: tools.filter((t) => t.installed).length,
+    network: tools.filter((t) => t.category === 'network').length,
+    web: tools.filter((t) => t.category === 'web').length,
+    binary: tools.filter((t) => t.category === 'binary').length,
+    cloud: tools.filter((t) => t.category === 'cloud').length,
+    ctf: tools.filter((t) => t.category === 'ctf').length,
+    osint: tools.filter((t) => t.category === 'osint').length,
   };
 
   return (

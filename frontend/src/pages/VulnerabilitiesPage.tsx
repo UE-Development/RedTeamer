@@ -21,9 +21,10 @@ import {
 import BugReportIcon from '@mui/icons-material/BugReport';
 import SearchIcon from '@mui/icons-material/Search';
 import { VulnerabilityCard } from '../components/vulnerabilities';
+import { useAppSelector } from '../store';
 import type { Vulnerability } from '../types';
 
-// Mock vulnerabilities data based on FEATURES.md
+// Mock vulnerabilities data for demo mode
 const MOCK_VULNERABILITIES: Vulnerability[] = [
   {
     id: '1',
@@ -209,12 +210,16 @@ curl -X POST https://example.com/api/fetch-url \\
 ];
 
 const VulnerabilitiesPage = () => {
+  const mockDataEnabled = useAppSelector((state) => state.settings.developer.mockDataEnabled);
   const [searchQuery, setSearchQuery] = useState('');
   const [severityFilter, setSeverityFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
 
+  // Get vulnerabilities based on mock data setting
+  const vulnerabilities = mockDataEnabled ? MOCK_VULNERABILITIES : [];
+
   const filteredVulnerabilities = useMemo(() => {
-    return MOCK_VULNERABILITIES.filter((vuln) => {
+    return vulnerabilities.filter((vuln) => {
       const matchesSearch =
         vuln.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         vuln.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -225,14 +230,14 @@ const VulnerabilitiesPage = () => {
 
       return matchesSearch && matchesSeverity && matchesStatus;
     });
-  }, [searchQuery, severityFilter, statusFilter]);
+  }, [vulnerabilities, searchQuery, severityFilter, statusFilter]);
 
   const vulnerabilityStats = {
-    total: MOCK_VULNERABILITIES.length,
-    critical: MOCK_VULNERABILITIES.filter((v) => v.severity === 'critical').length,
-    high: MOCK_VULNERABILITIES.filter((v) => v.severity === 'high').length,
-    medium: MOCK_VULNERABILITIES.filter((v) => v.severity === 'medium').length,
-    low: MOCK_VULNERABILITIES.filter((v) => v.severity === 'low').length,
+    total: vulnerabilities.length,
+    critical: vulnerabilities.filter((v) => v.severity === 'critical').length,
+    high: vulnerabilities.filter((v) => v.severity === 'high').length,
+    medium: vulnerabilities.filter((v) => v.severity === 'medium').length,
+    low: vulnerabilities.filter((v) => v.severity === 'low').length,
   };
 
   return (
