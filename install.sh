@@ -38,7 +38,7 @@ FRONTEND_DIR="$SCRIPT_DIR/frontend"
 # Flags (defaults)
 AUTO_INSTALL_SYSTEM_DEPS=true
 WITH_OFFENSIVE_TOOLS=false
-PRODUCTION_MODE=false
+PRODUCTION_MODE=true
 RECREATE_VENV=false
 SKIP_FRONTEND=false
 SKIP_TOOL_CHECK=false
@@ -78,7 +78,7 @@ print_usage() {
     echo "Options:"
     echo "  --skip-security-tools       Skip automatic installation of security tools"
     echo "  --with-offensive-tools      Install offensive tooling (pwntools, angr)"
-    echo "  --production                Setup for production (gunicorn, systemd service)"
+    echo "  --development               Setup for development mode (default is production)"
     echo "  --recreate-venv             Force recreation of the virtual environment"
     echo "  --skip-frontend             Skip frontend installation"
     echo "  --skip-tool-check           Skip security tool availability check"
@@ -86,10 +86,11 @@ print_usage() {
     echo "  -h, --help                  Show this help message"
     echo ""
     echo "Examples:"
-    echo "  $0                                  # Install all security tools by default"
+    echo "  $0                                  # Install in production mode (default)"
     echo "  $0 --skip-security-tools            # Skip security tool installation"
     echo "  $0 --with-offensive-tools           # Include binary exploitation tools"
-    echo "  $0 --production --generate-systemd  # Production setup with systemd"
+    echo "  $0 --development                    # Install in development mode"
+    echo "  $0 --generate-systemd               # Production setup with systemd service"
     echo ""
 }
 
@@ -1365,7 +1366,12 @@ parse_arguments() {
                 shift
                 ;;
             --production)
+                # Kept for backward compatibility (this is now the default)
                 PRODUCTION_MODE=true
+                shift
+                ;;
+            --development)
+                PRODUCTION_MODE=false
                 shift
                 ;;
             --recreate-venv)
