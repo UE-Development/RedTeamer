@@ -1047,6 +1047,8 @@ trap cleanup SIGINT SIGTERM
 check_server_health() {
     local host="${SERVER_HOST:-127.0.0.1}"
     local port="${SERVER_PORT:-8889}"
+    # Increased to 15 attempts to allow time for server startup and port file write
+    # when auto-port switching is needed
     local max_attempts=15
     local attempt=1
     
@@ -1076,6 +1078,9 @@ check_server_health() {
 
 # Initialize actual port variable
 ACTUAL_SERVER_PORT=""
+
+# Frontend port
+FRONTEND_PORT="3000"
 
 # Parse arguments for custom host/port
 SERVER_HOST="127.0.0.1"
@@ -1160,15 +1165,15 @@ if [ "$FRONTEND_AVAILABLE" = true ]; then
         sleep 2
         
         if kill -0 $FRONTEND_PID 2>/dev/null; then
-            # Check if frontend is responding on port 3000
-            if curl -s -o /dev/null -w "%{http_code}" "http://localhost:3000" 2>/dev/null | grep -qE "^[23]"; then
-                echo -e "${GREEN}✅ Frontend running on http://localhost:3000${NC}"
+            # Check if frontend is responding
+            if curl -s -o /dev/null -w "%{http_code}" "http://localhost:${FRONTEND_PORT}" 2>/dev/null | grep -qE "^[23]"; then
+                echo -e "${GREEN}✅ Frontend running on http://localhost:${FRONTEND_PORT}${NC}"
                 FRONTEND_STARTED=true
             else
                 # Process running but not responding yet - give it more time
                 sleep 3
                 if kill -0 $FRONTEND_PID 2>/dev/null; then
-                    echo -e "${GREEN}✅ Frontend starting on http://localhost:3000${NC}"
+                    echo -e "${GREEN}✅ Frontend running on http://localhost:${FRONTEND_PORT}${NC}"
                     FRONTEND_STARTED=true
                 else
                     echo -e "${YELLOW}⚠️  Frontend process exited unexpectedly${NC}"
@@ -1191,7 +1196,7 @@ echo -e "${GREEN}  HexStrike AI is running!${NC}"
 echo ""
 echo -e "  ${CYAN}📡 Backend API:${NC}    http://${SERVER_HOST}:${SERVER_PORT}"
 if [ "$FRONTEND_STARTED" = true ] && [ -n "$FRONTEND_PID" ]; then
-    echo -e "  ${CYAN}🌐 Frontend:${NC}       http://localhost:3000"
+    echo -e "  ${CYAN}🌐 Frontend:${NC}       http://localhost:${FRONTEND_PORT}"
 elif [ -n "$FRONTEND_SKIP_REASON" ]; then
     case "$FRONTEND_SKIP_REASON" in
         nodejs)
