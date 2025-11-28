@@ -122,6 +122,20 @@ const AIProviderCard = ({
     setEditModeCustomUrl(false);
   };
 
+  // Helper function for model dropdown helper text
+  const getModelHelperText = (): string => {
+    if (modelsLoading) {
+      return 'Loading models...';
+    }
+    if (!provider.enabled) {
+      return `${dynamicModels.length} models available (enable provider to use)`;
+    }
+    if (modelsSource === 'openrouter') {
+      return `${dynamicModels.length} models loaded from OpenRouter API`;
+    }
+    return 'Using default model list (add API key for full list)';
+  };
+
   const isCustomProvider = provider.providerType === 'custom';
 
   return (
@@ -304,7 +318,7 @@ const AIProviderCard = ({
 
           {/* Provider Filter Dropdown */}
           <Grid size={{ xs: 12, md: 4 }}>
-            <FormControl fullWidth disabled={!provider.enabled}>
+            <FormControl fullWidth>
               <InputLabel>Provider Filter</InputLabel>
               <Select
                 value={provider.providerFilter || 'all'}
@@ -332,20 +346,13 @@ const AIProviderCard = ({
                   onUpdate({ selectedModel: newValue.id });
                 }
               }}
-              disabled={!provider.enabled}
               loading={modelsLoading}
               renderInput={(params) => (
                 <TextField
                   {...params}
                   label="AI Model"
                   placeholder="Search models..."
-                  helperText={
-                    modelsLoading
-                      ? 'Loading models...'
-                      : modelsSource === 'openrouter'
-                        ? `${dynamicModels.length} models loaded from OpenRouter API`
-                        : 'Using default model list (add API key for full list)'
-                  }
+                  helperText={getModelHelperText()}
                   InputProps={{
                     ...params.InputProps,
                     endAdornment: (
