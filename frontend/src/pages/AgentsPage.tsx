@@ -730,7 +730,7 @@ const AgentsPage = () => {
   };
 
   return (
-    <Box sx={{ height: 'calc(100vh - 140px)' }}>
+    <Box sx={{ height: { xs: 'auto', md: 'calc(100vh - 140px)' }, maxWidth: '100%', overflowX: 'hidden' }}>
       {/* Info banner when demo mode is off and no agents */}
       {!mockDataEnabled && agents.length === 0 && (
         <Alert 
@@ -742,8 +742,15 @@ const AgentsPage = () => {
         </Alert>
       )}
       
-      <Typography variant="h4" sx={{ mb: 3, fontWeight: 700 }}>
-        <SmartToyIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+      <Typography 
+        variant="h4" 
+        sx={{ 
+          mb: 3, 
+          fontWeight: 700,
+          fontSize: { xs: '1.5rem', sm: '2rem', md: '2.125rem' },
+        }}
+      >
+        <SmartToyIcon sx={{ mr: 1, verticalAlign: 'middle', fontSize: { xs: '1.5rem', sm: '2rem' } }} />
         AI Agents
       </Typography>
 
@@ -752,7 +759,7 @@ const AgentsPage = () => {
           display: 'grid',
           gridTemplateColumns: { xs: '1fr', md: '280px 1fr' },
           gap: 2,
-          height: 'calc(100% - 60px)',
+          height: { xs: 'auto', md: 'calc(100% - 60px)' },
         }}
       >
         {/* Agent Selector Panel */}
@@ -764,7 +771,7 @@ const AgentsPage = () => {
         />
 
         {/* Main Content Area with Tabs */}
-        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', height: { xs: 'auto', md: '100%' }, minHeight: { xs: '400px', md: 'auto' } }}>
           {/* Tabs */}
           <Paper sx={{ mb: 2 }}>
             <Tabs
@@ -772,40 +779,41 @@ const AgentsPage = () => {
               onChange={(_, newValue) => setActiveTab(newValue)}
               variant="scrollable"
               scrollButtons="auto"
+              allowScrollButtonsMobile
               sx={{ borderBottom: 1, borderColor: 'divider' }}
             >
-              <Tab icon={<ChatIcon />} label="Chat" iconPosition="start" sx={{ minHeight: 48 }} />
+              <Tab icon={<ChatIcon />} label="Chat" iconPosition="start" sx={{ minHeight: 48, minWidth: { xs: 'auto', sm: 90 }, px: { xs: 1, sm: 2 } }} />
               <Tab
                 icon={<GroupIcon />}
                 label="Multi-Agent"
                 iconPosition="start"
-                sx={{ minHeight: 48 }}
+                sx={{ minHeight: 48, minWidth: { xs: 'auto', sm: 90 }, px: { xs: 1, sm: 2 } }}
               />
               <Tab
                 icon={<AccountTreeIcon />}
                 label="Collaboration"
                 iconPosition="start"
-                sx={{ minHeight: 48 }}
+                sx={{ minHeight: 48, minWidth: { xs: 'auto', sm: 90 }, px: { xs: 1, sm: 2 } }}
               />
               <Tab
                 icon={<ScheduleIcon />}
                 label="Scheduler"
                 iconPosition="start"
-                sx={{ minHeight: 48 }}
+                sx={{ minHeight: 48, minWidth: { xs: 'auto', sm: 90 }, px: { xs: 1, sm: 2 } }}
               />
               <Tab
                 icon={<ExploreIcon />}
                 label="Capabilities"
                 iconPosition="start"
-                sx={{ minHeight: 48 }}
+                sx={{ minHeight: 48, minWidth: { xs: 'auto', sm: 90 }, px: { xs: 1, sm: 2 } }}
               />
-              <Tab icon={<HistoryIcon />} label="History" iconPosition="start" sx={{ minHeight: 48 }} />
-              <Tab icon={<SpeedIcon />} label="Metrics" iconPosition="start" sx={{ minHeight: 48 }} />
+              <Tab icon={<HistoryIcon />} label="History" iconPosition="start" sx={{ minHeight: 48, minWidth: { xs: 'auto', sm: 90 }, px: { xs: 1, sm: 2 } }} />
+              <Tab icon={<SpeedIcon />} label="Metrics" iconPosition="start" sx={{ minHeight: 48, minWidth: { xs: 'auto', sm: 90 }, px: { xs: 1, sm: 2 } }} />
             </Tabs>
           </Paper>
 
           {/* Tab Content */}
-          <Box sx={{ flex: 1, minHeight: 0 }}>{renderTabContent()}</Box>
+          <Box sx={{ flex: 1, minHeight: { xs: '300px', md: 0 } }}>{renderTabContent()}</Box>
         </Box>
       </Box>
     </Box>

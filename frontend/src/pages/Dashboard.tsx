@@ -278,7 +278,7 @@ const Dashboard = () => {
   ];
 
   return (
-    <Box>
+    <Box sx={{ maxWidth: '100%', overflowX: 'hidden' }}>
       {/* Info banner when demo mode is off */}
       {!mockDataEnabled && (
         <Alert 
@@ -291,13 +291,26 @@ const Dashboard = () => {
       )}
       
       {/* Header with Refresh */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" sx={{ fontWeight: 700 }}>
-          <SecurityIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: { xs: 'column', sm: 'row' },
+        justifyContent: 'space-between', 
+        alignItems: { xs: 'flex-start', sm: 'center' }, 
+        mb: 3,
+        gap: { xs: 1, sm: 0 }
+      }}>
+        <Typography 
+          variant="h4" 
+          sx={{ 
+            fontWeight: 700,
+            fontSize: { xs: '1.5rem', sm: '2rem', md: '2.125rem' },
+          }}
+        >
+          <SecurityIcon sx={{ mr: 1, verticalAlign: 'middle', fontSize: { xs: '1.5rem', sm: '2rem' } }} />
           Security Overview
         </Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
             Last updated: {lastUpdated.toLocaleTimeString()}
           </Typography>
           <Tooltip title="Refresh data">
@@ -309,7 +322,7 @@ const Dashboard = () => {
       </Box>
 
       {/* Metrics Cards with Trends */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 3, mb: 4 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: { xs: 2, md: 3 }, mb: 4 }}>
         {metricCards.map((metric) => (
           <Card
             key={metric.title}
