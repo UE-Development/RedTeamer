@@ -233,7 +233,7 @@ const settingsSlice = createSlice({
     },
     // Add a new AI provider
     addAIProvider: (state) => {
-      const newId = `provider-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const newId = `provider-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
       state.aiProvider.providers.push({
         id: newId,
         providerType: 'openrouter',
