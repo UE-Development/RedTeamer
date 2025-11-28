@@ -9,3 +9,5 @@ export { default as ScanActivityChart } from './ScanActivityChart';
 export { default as ToolUsageChart } from './ToolUsageChart';
 export { default as ResourceUsageGauge } from './ResourceUsageGauge';
 export { default as VulnerabilityHeatMap } from './VulnerabilityHeatMap';
+export { default as SecurityPostureVisualization } from './SecurityPostureVisualization';
+export type { SecurityMetrics } from './SecurityPostureVisualization';
