@@ -106,14 +106,16 @@ const ProcessTreeNode: React.FC<ProcessTreeNodeProps> = ({
     return `${Math.floor(ms / 60000)}m ${Math.round((ms % 60000) / 1000)}s`;
   };
 
-  // Use a memoized calculation for duration to avoid calling Date.now() during render
+  // Calculate duration - for running processes, the elapsed time is calculated once
+  // and will update when the parent component re-renders with updated process data.
+  // This is intentional to avoid unnecessary re-renders during the render phase.
   const duration = useMemo(() => {
     if (node.duration) return formatDuration(node.duration);
     if (node.startTime && node.endTime) {
       return formatDuration(node.endTime.getTime() - node.startTime.getTime());
     }
     if (node.startTime) {
-      // For running processes, calculate elapsed time
+      // For running processes, calculate elapsed time at render time
       const elapsed = new Date().getTime() - node.startTime.getTime();
       return formatDuration(elapsed);
     }
