@@ -3,7 +3,7 @@
  * Includes MCP Server settings with external access configuration
  */
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Box,
   Typography,
@@ -26,9 +26,6 @@ import {
   Card,
   CardContent,
   InputAdornment,
-  Autocomplete,
-  ListSubheader,
-  CircularProgress,
 } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
 import DnsIcon from '@mui/icons-material/Dns';
@@ -44,23 +41,24 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import WarningIcon from '@mui/icons-material/Warning';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import CodeIcon from '@mui/icons-material/Code';
 import EditIcon from '@mui/icons-material/Edit';
-import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
+import AddIcon from '@mui/icons-material/Add';
 import { useAppSelector, useAppDispatch } from '../store';
 import {
   setMCPServerSettings,
   setExternalAccessEnabled,
   setThemeSettings,
   setAPISettings,
-  setAIProviderSettings,
+  addAIProvider,
+  removeAIProvider,
+  updateAIProvider,
   setNotificationSettings,
   setDeveloperSettings,
   saveSettings,
   resetSettings,
 } from '../store/slices/settingsSlice';
+import { AIProviderCard } from '../components/common';
 import { apiClient } from '../services/api';
 
 const SettingsPage = () => {
@@ -68,62 +66,12 @@ const SettingsPage = () => {
   const settings = useAppSelector((state) => state.settings);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showCopySuccess, setShowCopySuccess] = useState(false);
-  const [showOpenRouterKey, setShowOpenRouterKey] = useState(false);
   
   // Edit mode states for sensitive fields
-  const [editModeOpenRouterKey, setEditModeOpenRouterKey] = useState(false);
   const [editModeHost, setEditModeHost] = useState(false);
   const [editModePort, setEditModePort] = useState(false);
   const [editModeApiBaseUrl, setEditModeApiBaseUrl] = useState(false);
   const [editModeWebsocketUrl, setEditModeWebsocketUrl] = useState(false);
-  
-  // Dynamic AI models state
-  interface DynamicAIModel {
-    id: string;
-    name: string;
-    provider: string;
-    description?: string;
-    priceIn?: number | null;
-    priceOut?: number | null;
-    context_length?: number;
-  }
-  interface AIProvider {
-    id: string;
-    name: string;
-  }
-  const [dynamicModels, setDynamicModels] = useState<DynamicAIModel[]>([]);
-  const [availableProviders, setAvailableProviders] = useState<AIProvider[]>([
-    { id: 'all', name: 'All Providers' },
-  ]);
-  const [modelsLoading, setModelsLoading] = useState(false);
-  const [modelsSource, setModelsSource] = useState<'static' | 'openrouter'>('static');
-  
-  // Load AI models when API key changes or provider filter changes
-  useEffect(() => {
-    const loadModels = async () => {
-      setModelsLoading(true);
-      try {
-        const response = await apiClient.getAIModels(
-          settings.aiProvider.openRouterApiKey || undefined,
-          settings.aiProvider.openRouterProvider || 'all'
-        );
-        if (response.success) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const data = response as any;
-          setDynamicModels(data.models || []);
-          setAvailableProviders(data.providers || [{ id: 'all', name: 'All Providers' }]);
-          setModelsSource(data.source === 'openrouter' ? 'openrouter' : 'static');
-        }
-      } catch (error) {
-        console.error('Failed to load AI models:', error);
-        // Keep existing models on error
-      } finally {
-        setModelsLoading(false);
-      }
-    };
-    
-    loadModels();
-  }, [settings.aiProvider.openRouterApiKey, settings.aiProvider.openRouterProvider]);
 
   const handleSaveSettings = () => {
     dispatch(saveSettings());
@@ -435,271 +383,65 @@ const SettingsPage = () => {
           </Paper>
         </Grid>
 
-        {/* OpenRouter AI Configuration */}
+        {/* AI Provider Configuration */}
         <Grid size={12}>
           <Paper sx={{ p: 3 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-              <SmartToyIcon sx={{ mr: 1, color: 'success.main' }} />
-              <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                OpenRouter AI Configuration
-              </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <SmartToyIcon sx={{ mr: 1, color: 'success.main' }} />
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  AI Provider Configuration
+                </Typography>
+              </Box>
+              <Button
+                variant="outlined"
+                startIcon={<AddIcon />}
+                onClick={() => dispatch(addAIProvider())}
+                size="small"
+              >
+                Add Provider
+              </Button>
             </Box>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              Configure OpenRouter API for AI-powered security analysis and agent capabilities.
-              Get your API key from{' '}
-              <a
-                href="https://openrouter.ai/keys"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: '#00ff41' }}
-              >
-                openrouter.ai/keys
-              </a>
+              Configure AI providers for AI-powered security analysis and agent capabilities.
+              Supports OpenRouter, OpenAI, Anthropic, or custom API endpoints.
             </Typography>
 
-            <Grid container spacing={3}>
-              <Grid size={{ xs: 12, md: 4 }}>
-                <Card
-                  sx={{
-                    bgcolor: settings.aiProvider.openRouterEnabled ? 'success.main' : 'action.disabledBackground',
-                    color: settings.aiProvider.openRouterEnabled ? 'white' : 'text.secondary',
-                    transition: 'all 0.3s ease',
-                  }}
-                >
-                  <CardContent>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Box>
-                        <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                          OpenRouter Status
-                        </Typography>
-                        <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                          {settings.aiProvider.openRouterEnabled ? 'AI features enabled' : 'AI features disabled'}
-                        </Typography>
-                      </Box>
-                      <Switch
-                        checked={settings.aiProvider.openRouterEnabled}
-                        onChange={(e) => dispatch(setAIProviderSettings({ openRouterEnabled: e.target.checked }))}
-                        color="default"
-                        sx={{
-                          '& .MuiSwitch-switchBase.Mui-checked': {
-                            color: 'white',
-                          },
-                        }}
-                      />
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
+            {/* Render all configured providers */}
+            {settings.aiProvider.providers.map((provider) => (
+              <AIProviderCard
+                key={provider.id}
+                provider={provider}
+                onUpdate={(updates) => dispatch(updateAIProvider({ id: provider.id, updates }))}
+                onRemove={() => dispatch(removeAIProvider(provider.id))}
+                onCopy={copyToClipboard}
+                showRemoveButton={settings.aiProvider.providers.length > 1}
+              />
+            ))}
 
-              <Grid size={{ xs: 12, md: 8 }}>
-                <TextField
-                  fullWidth
-                  label="OpenRouter API Key"
-                  type={showOpenRouterKey ? 'text' : 'password'}
-                  value={settings.aiProvider.openRouterApiKey}
-                  onChange={(e) => dispatch(setAIProviderSettings({ openRouterApiKey: e.target.value }))}
-                  placeholder="sk-or-v1-..."
-                  disabled={!editModeOpenRouterKey}
-                  helperText={editModeOpenRouterKey ? "Enter your OpenRouter API key, then click Save" : "Your OpenRouter API key for AI-powered features"}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <SecurityIcon />
-                      </InputAdornment>
-                    ),
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <Tooltip title={showOpenRouterKey ? 'Hide API Key' : 'Show API Key'}>
-                          <IconButton onClick={() => setShowOpenRouterKey(!showOpenRouterKey)}>
-                            {showOpenRouterKey ? <VisibilityOffIcon /> : <VisibilityIcon />}
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Copy API Key">
-                          <IconButton
-                            onClick={() => copyToClipboard(settings.aiProvider.openRouterApiKey)}
-                            disabled={!settings.aiProvider.openRouterApiKey}
-                          >
-                            <ContentCopyIcon />
-                          </IconButton>
-                        </Tooltip>
-                        {editModeOpenRouterKey ? (
-                          <Tooltip title="Save API Key">
-                            <IconButton
-                              onClick={() => {
-                                setEditModeOpenRouterKey(false);
-                                dispatch(saveSettings());
-                              }}
-                              color="success"
-                            >
-                              <SaveIcon />
-                            </IconButton>
-                          </Tooltip>
-                        ) : (
-                          <Tooltip title="Edit API Key">
-                            <IconButton onClick={() => setEditModeOpenRouterKey(true)}>
-                              <EditIcon />
-                            </IconButton>
-                          </Tooltip>
-                        )}
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-              </Grid>
+            {/* Show alert if at least one provider is enabled with API key */}
+            {settings.aiProvider.providers.some((p) => p.enabled && p.apiKey) && (
+              <Alert severity="success" icon={<CheckCircleIcon />} sx={{ mt: 2 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                  AI Provider Connected
+                </Typography>
+                <Typography variant="body2">
+                  AI-powered security analysis is now available. Your agents can use advanced AI capabilities for vulnerability detection and exploit generation.
+                </Typography>
+              </Alert>
+            )}
 
-              {/* Provider Dropdown */}
-              <Grid size={{ xs: 12, md: 4 }}>
-                <FormControl fullWidth disabled={!settings.aiProvider.openRouterEnabled}>
-                  <InputLabel>Provider Filter</InputLabel>
-                  <Select
-                    value={settings.aiProvider.openRouterProvider || 'all'}
-                    label="Provider Filter"
-                    onChange={(e) => dispatch(setAIProviderSettings({ openRouterProvider: e.target.value }))}
-                  >
-                    {availableProviders.map((provider) => (
-                      <MenuItem key={provider.id} value={provider.id}>
-                        {provider.name}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-
-              {/* Dynamic Model Selection */}
-              <Grid size={{ xs: 12, md: 8 }}>
-                <Autocomplete
-                  options={dynamicModels}
-                  groupBy={(option) => option.provider}
-                  getOptionLabel={(option) => option.name}
-                  value={dynamicModels.find((m) => m.id === settings.aiProvider.openRouterModel) || null}
-                  onChange={(_, newValue) => {
-                    if (newValue) {
-                      dispatch(setAIProviderSettings({ openRouterModel: newValue.id }));
-                    }
-                  }}
-                  disabled={!settings.aiProvider.openRouterEnabled}
-                  loading={modelsLoading}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label="AI Model"
-                      placeholder="Search models..."
-                      helperText={
-                        modelsLoading 
-                          ? "Loading models..." 
-                          : modelsSource === 'openrouter' 
-                            ? `${dynamicModels.length} models loaded from OpenRouter API` 
-                            : "Using default model list (add API key for full list)"
-                      }
-                      InputProps={{
-                        ...params.InputProps,
-                        endAdornment: (
-                          <>
-                            {modelsLoading ? <CircularProgress color="inherit" size={20} /> : null}
-                            {params.InputProps.endAdornment}
-                          </>
-                        ),
-                      }}
-                    />
-                  )}
-                  renderGroup={(params) => (
-                    <li key={params.key}>
-                      <ListSubheader
-                        component="div"
-                        sx={{
-                          bgcolor: 'background.paper',
-                          color: 'primary.main',
-                          fontWeight: 700,
-                          fontSize: '0.75rem',
-                          letterSpacing: '0.1em',
-                          py: 1,
-                          borderBottom: '1px solid',
-                          borderColor: 'divider',
-                        }}
-                      >
-                        {availableProviders.find(p => p.id === params.group)?.name || params.group}
-                      </ListSubheader>
-                      <ul style={{ padding: 0 }}>{params.children}</ul>
-                    </li>
-                  )}
-                  renderOption={(props, option) => {
-                    const { key, ...otherProps } = props;
-                    return (
-                      <li key={key} {...otherProps}>
-                        <Box sx={{ display: 'flex', flexDirection: 'column', py: 0.5, width: '100%' }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Typography variant="body1">{option.name}</Typography>
-                            </Box>
-                            {(option.priceIn !== undefined && option.priceIn !== null && option.priceOut !== undefined && option.priceOut !== null) && (
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                <AttachMoneyIcon sx={{ fontSize: 14, color: 'success.main' }} />
-                                <Typography variant="caption" sx={{ color: 'success.main', fontFamily: 'monospace', fontWeight: 600 }}>
-                                  ${option.priceIn.toFixed(2)} / ${option.priceOut.toFixed(2)}
-                                </Typography>
-                              </Box>
-                            )}
-                          </Box>
-                          {option.description && (
-                            <Typography variant="caption" color="text.secondary">
-                              {option.description}
-                            </Typography>
-                          )}
-                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-                            <Typography variant="caption" color="text.disabled" sx={{ fontFamily: 'monospace' }}>
-                              {option.id}
-                            </Typography>
-                            {option.context_length && (
-                              <Typography variant="caption" color="text.disabled" sx={{ fontFamily: 'monospace', fontSize: '0.65rem' }}>
-                                {(option.context_length / 1000).toFixed(0)}K context
-                              </Typography>
-                            )}
-                          </Box>
-                        </Box>
-                      </li>
-                    );
-                  }}
-                  ListboxProps={{
-                    sx: { maxHeight: 400 },
-                  }}
-                  isOptionEqualToValue={(option, value) => option.id === value.id}
-                />
-              </Grid>
-
-              {settings.aiProvider.openRouterEnabled && settings.aiProvider.openRouterApiKey && (
-                <Grid size={12}>
-                  <Alert severity="success" icon={<CheckCircleIcon />}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                      OpenRouter Connected
-                    </Typography>
-                    <Typography variant="body2">
-                      AI-powered security analysis is now available. Your agents can use advanced AI capabilities for vulnerability detection and exploit generation.
-                    </Typography>
-                  </Alert>
-                </Grid>
-              )}
-
-              {settings.aiProvider.openRouterEnabled && !settings.aiProvider.openRouterApiKey && (
-                <Grid size={12}>
-                  <Alert severity="warning" icon={<WarningIcon />}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                      API Key Required
-                    </Typography>
-                    <Typography variant="body2">
-                      Please enter your OpenRouter API key to enable AI features. You can get one at{' '}
-                      <a
-                        href="https://openrouter.ai/keys"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ color: 'inherit', fontWeight: 600 }}
-                      >
-                        openrouter.ai/keys
-                      </a>
-                    </Typography>
-                  </Alert>
-                </Grid>
-              )}
-            </Grid>
+            {/* Show warning if a provider is enabled but missing API key */}
+            {settings.aiProvider.providers.some((p) => p.enabled && !p.apiKey) && (
+              <Alert severity="warning" icon={<WarningIcon />} sx={{ mt: 2 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                  API Key Required
+                </Typography>
+                <Typography variant="body2">
+                  One or more enabled providers are missing an API key. Please enter your API keys to enable AI features.
+                </Typography>
+              </Alert>
+            )}
           </Paper>
         </Grid>
 
