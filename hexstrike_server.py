@@ -18123,6 +18123,192 @@ def get_ai_config():
         logger.error(f"Error getting AI config: {str(e)}")
         return jsonify({"error": f"Server error: {str(e)}"}), 500
 
+@app.route("/api/agents/models", methods=["GET"])
+def get_ai_models():
+    """Fetch available AI models from OpenRouter API
+    
+    Query parameters:
+    - api_key: OpenRouter API key (optional, uses env var if not provided)
+    - provider: Filter by provider (optional, e.g., 'anthropic', 'openai', 'google')
+    """
+    try:
+        api_key = request.args.get('api_key') or os.environ.get("OPENROUTER_API_KEY", "")
+        provider_filter = request.args.get('provider', 'all')
+        
+        if not api_key:
+            # Return a static fallback list if no API key
+            return jsonify({
+                "success": True,
+                "source": "static",
+                "message": "No API key provided. Showing default models.",
+                "providers": [
+                    {"id": "all", "name": "All Providers"},
+                    {"id": "anthropic", "name": "Anthropic"},
+                    {"id": "openai", "name": "OpenAI"},
+                    {"id": "google", "name": "Google"},
+                    {"id": "meta-llama", "name": "Meta Llama"},
+                    {"id": "mistralai", "name": "Mistral AI"},
+                    {"id": "x-ai", "name": "xAI"},
+                    {"id": "cohere", "name": "Cohere"},
+                    {"id": "deepseek", "name": "DeepSeek"},
+                ],
+                "models": _get_static_models(provider_filter),
+                "timestamp": datetime.now().isoformat()
+            })
+        
+        # Fetch models from OpenRouter API
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "HTTP-Referer": "https://hexstrike.ai",
+            "X-Title": "HexStrike AI Security Platform"
+        }
+        
+        response = requests.get(
+            "https://openrouter.ai/api/v1/models",
+            headers=headers,
+            timeout=30
+        )
+        response.raise_for_status()
+        
+        data = response.json()
+        models = data.get("data", [])
+        
+        # Extract unique providers from models
+        providers_set = set()
+        for model in models:
+            model_id = model.get("id", "")
+            if "/" in model_id:
+                provider = model_id.split("/")[0]
+                providers_set.add(provider)
+        
+        providers = [{"id": "all", "name": "All Providers"}]
+        provider_names = {
+            "anthropic": "Anthropic",
+            "openai": "OpenAI",
+            "google": "Google",
+            "meta-llama": "Meta Llama",
+            "mistralai": "Mistral AI",
+            "x-ai": "xAI",
+            "cohere": "Cohere",
+            "deepseek": "DeepSeek",
+            "perplexity": "Perplexity",
+            "qwen": "Qwen",
+            "01-ai": "Yi",
+            "databricks": "Databricks",
+            "microsoft": "Microsoft",
+            "nous": "Nous Research",
+            "nousresearch": "Nous Research",
+        }
+        
+        for provider_id in sorted(providers_set):
+            providers.append({
+                "id": provider_id,
+                "name": provider_names.get(provider_id, provider_id.replace("-", " ").title())
+            })
+        
+        # Transform and filter models
+        transformed_models = []
+        for model in models:
+            model_id = model.get("id", "")
+            model_provider = model_id.split("/")[0] if "/" in model_id else "other"
+            
+            # Apply provider filter
+            if provider_filter != "all" and model_provider != provider_filter:
+                continue
+            
+            pricing = model.get("pricing", {})
+            prompt_price = float(pricing.get("prompt", 0)) * 1000000 if pricing.get("prompt") else None
+            completion_price = float(pricing.get("completion", 0)) * 1000000 if pricing.get("completion") else None
+            
+            transformed_models.append({
+                "id": model_id,
+                "name": model.get("name", model_id),
+                "provider": model_provider,
+                "description": model.get("description", ""),
+                "context_length": model.get("context_length"),
+                "priceIn": prompt_price,
+                "priceOut": completion_price,
+                "top_provider": model.get("top_provider", {}).get("is_moderated", False),
+            })
+        
+        # Sort models: by provider, then by name
+        transformed_models.sort(key=lambda x: (x["provider"], x["name"]))
+        
+        logger.info(f"Fetched {len(transformed_models)} models from OpenRouter API (filter: {provider_filter})")
+        
+        return jsonify({
+            "success": True,
+            "source": "openrouter",
+            "providers": providers,
+            "models": transformed_models,
+            "total_count": len(models),
+            "filtered_count": len(transformed_models),
+            "timestamp": datetime.now().isoformat()
+        })
+        
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"Failed to fetch models from OpenRouter: {str(e)}")
+        # Return static fallback on API error
+        return jsonify({
+            "success": True,
+            "source": "static",
+            "message": f"Could not fetch from OpenRouter API: {str(e)}. Showing default models.",
+            "providers": [
+                {"id": "all", "name": "All Providers"},
+                {"id": "anthropic", "name": "Anthropic"},
+                {"id": "openai", "name": "OpenAI"},
+                {"id": "google", "name": "Google"},
+                {"id": "meta-llama", "name": "Meta Llama"},
+                {"id": "mistralai", "name": "Mistral AI"},
+                {"id": "x-ai", "name": "xAI"},
+            ],
+            "models": _get_static_models(provider_filter),
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error getting AI models: {str(e)}")
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+def _get_static_models(provider_filter: str = "all") -> list:
+    """Return static fallback list of popular AI models"""
+    static_models = [
+        # Anthropic
+        {"id": "anthropic/claude-3.5-sonnet", "name": "Claude 3.5 Sonnet", "provider": "anthropic", "description": "Best for security analysis", "priceIn": 3.00, "priceOut": 15.00},
+        {"id": "anthropic/claude-3-opus", "name": "Claude 3 Opus", "provider": "anthropic", "description": "Most capable model", "priceIn": 15.00, "priceOut": 75.00},
+        {"id": "anthropic/claude-3-sonnet", "name": "Claude 3 Sonnet", "provider": "anthropic", "priceIn": 3.00, "priceOut": 15.00},
+        {"id": "anthropic/claude-3-haiku", "name": "Claude 3 Haiku", "provider": "anthropic", "description": "Fast and efficient", "priceIn": 0.25, "priceOut": 1.25},
+        # OpenAI
+        {"id": "openai/gpt-4o", "name": "GPT-4o", "provider": "openai", "description": "Fastest GPT-4 model", "priceIn": 2.50, "priceOut": 10.00},
+        {"id": "openai/gpt-4o-mini", "name": "GPT-4o Mini", "provider": "openai", "description": "Fast and cost-effective", "priceIn": 0.15, "priceOut": 0.60},
+        {"id": "openai/gpt-4-turbo", "name": "GPT-4 Turbo", "provider": "openai", "priceIn": 10.00, "priceOut": 30.00},
+        {"id": "openai/gpt-4", "name": "GPT-4", "provider": "openai", "priceIn": 30.00, "priceOut": 60.00},
+        {"id": "openai/o1-preview", "name": "O1 Preview", "provider": "openai", "description": "Reasoning model", "priceIn": 15.00, "priceOut": 60.00},
+        {"id": "openai/o1-mini", "name": "O1 Mini", "provider": "openai", "description": "Fast reasoning", "priceIn": 3.00, "priceOut": 12.00},
+        # Google
+        {"id": "google/gemini-pro-1.5", "name": "Gemini Pro 1.5", "provider": "google", "description": "Long context window", "priceIn": 1.25, "priceOut": 5.00},
+        {"id": "google/gemini-1.5-flash", "name": "Gemini 1.5 Flash", "provider": "google", "priceIn": 0.075, "priceOut": 0.30},
+        {"id": "google/gemini-pro", "name": "Gemini Pro", "provider": "google", "priceIn": 0.50, "priceOut": 1.50},
+        # Meta Llama
+        {"id": "meta-llama/llama-3.1-405b-instruct", "name": "Llama 3.1 405B", "provider": "meta-llama", "description": "Largest open model", "priceIn": 2.70, "priceOut": 2.70},
+        {"id": "meta-llama/llama-3.1-70b-instruct", "name": "Llama 3.1 70B", "provider": "meta-llama", "priceIn": 0.52, "priceOut": 0.75},
+        {"id": "meta-llama/llama-3.1-8b-instruct", "name": "Llama 3.1 8B", "provider": "meta-llama", "priceIn": 0.055, "priceOut": 0.055},
+        # Mistral
+        {"id": "mistralai/mistral-large", "name": "Mistral Large", "provider": "mistralai", "priceIn": 2.00, "priceOut": 6.00},
+        {"id": "mistralai/mixtral-8x22b-instruct", "name": "Mixtral 8x22B", "provider": "mistralai", "priceIn": 0.65, "priceOut": 0.65},
+        {"id": "mistralai/codestral-latest", "name": "Codestral", "provider": "mistralai", "description": "Code specialist", "priceIn": 0.20, "priceOut": 0.60},
+        # xAI
+        {"id": "x-ai/grok-3", "name": "Grok 3", "provider": "x-ai", "description": "Latest Grok model", "priceIn": 3.00, "priceOut": 15.00},
+        {"id": "x-ai/grok-2", "name": "Grok 2", "provider": "x-ai", "priceIn": 2.00, "priceOut": 10.00},
+        # DeepSeek
+        {"id": "deepseek/deepseek-coder", "name": "DeepSeek Coder", "provider": "deepseek", "priceIn": 0.14, "priceOut": 0.28},
+        {"id": "deepseek/deepseek-chat", "name": "DeepSeek Chat", "provider": "deepseek", "priceIn": 0.14, "priceOut": 0.28},
+    ]
+    
+    if provider_filter == "all":
+        return static_models
+    
+    return [m for m in static_models if m["provider"] == provider_filter]
+
 # ============================================================================
 # TOOLS, SCANS, VULNERABILITIES & DASHBOARD API ENDPOINTS
 # These endpoints provide real data streams for the frontend when demo mode is off.

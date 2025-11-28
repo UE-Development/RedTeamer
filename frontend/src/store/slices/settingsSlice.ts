@@ -35,6 +35,7 @@ export interface AIProviderSettings {
   openRouterApiKey: string;
   openRouterModel: string;
   openRouterEnabled: boolean;
+  openRouterProvider: string;  // Selected provider filter (e.g., 'all', 'anthropic', 'openai', etc.)
 }
 
 export interface NotificationSettings {
@@ -87,6 +88,7 @@ const defaultSettings: SettingsState = {
     openRouterApiKey: '',
     openRouterModel: 'anthropic/claude-3.5-sonnet',
     openRouterEnabled: false,
+    openRouterProvider: 'all',  // Filter by provider: 'all', 'anthropic', 'openai', etc.
   },
   notifications: {
     enabled: true,
