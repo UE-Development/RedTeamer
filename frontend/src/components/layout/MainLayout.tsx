@@ -28,15 +28,11 @@ const MainLayout = () => {
     }
   };
 
-  // On mobile, sidebar is always an overlay (temporary drawer)
-  // On desktop, sidebar can push content
-  const effectiveSidebarOpen = isMobile ? sidebarOpen : sidebarOpen;
-
   return (
     <Box sx={{ display: 'flex', width: '100%', minHeight: '100vh', overflow: 'hidden' }}>
-      <TopBar onMenuClick={handleDrawerToggle} drawerWidth={DRAWER_WIDTH} open={effectiveSidebarOpen && !isMobile} />
+      <TopBar onMenuClick={handleDrawerToggle} drawerWidth={DRAWER_WIDTH} open={sidebarOpen && !isMobile} />
       <Sidebar 
-        open={effectiveSidebarOpen} 
+        open={sidebarOpen} 
         drawerWidth={DRAWER_WIDTH} 
         onClose={handleDrawerToggle}
         isMobile={isMobile}
@@ -49,7 +45,7 @@ const MainLayout = () => {
           p: { xs: 1.5, sm: 2, md: 3 },
           width: { 
             xs: '100%',
-            md: effectiveSidebarOpen ? `calc(100% - ${DRAWER_WIDTH}px)` : '100%'
+            md: sidebarOpen ? `calc(100% - ${DRAWER_WIDTH}px)` : '100%'
           },
           maxWidth: '100%',
           minHeight: '100vh',
