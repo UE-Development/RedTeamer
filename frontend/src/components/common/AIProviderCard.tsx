@@ -122,6 +122,20 @@ const AIProviderCard = ({
     setEditModeCustomUrl(false);
   };
 
+  // Helper function for model dropdown helper text
+  const getModelHelperText = (): string => {
+    if (modelsLoading) {
+      return 'Loading models...';
+    }
+    if (!provider.enabled) {
+      return `${dynamicModels.length} models available (enable provider to use)`;
+    }
+    if (modelsSource === 'openrouter') {
+      return `${dynamicModels.length} models loaded from OpenRouter API`;
+    }
+    return 'Using default model list (add API key for full list)';
+  };
+
   const isCustomProvider = provider.providerType === 'custom';
 
   return (
@@ -338,15 +352,7 @@ const AIProviderCard = ({
                   {...params}
                   label="AI Model"
                   placeholder="Search models..."
-                  helperText={
-                    modelsLoading
-                      ? 'Loading models...'
-                      : !provider.enabled
-                        ? `${dynamicModels.length} models available (enable provider to use)`
-                        : modelsSource === 'openrouter'
-                          ? `${dynamicModels.length} models loaded from OpenRouter API`
-                          : 'Using default model list (add API key for full list)'
-                  }
+                  helperText={getModelHelperText()}
                   InputProps={{
                     ...params.InputProps,
                     endAdornment: (
