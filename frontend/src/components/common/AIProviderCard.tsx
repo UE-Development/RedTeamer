@@ -304,7 +304,7 @@ const AIProviderCard = ({
 
           {/* Provider Filter Dropdown */}
           <Grid size={{ xs: 12, md: 4 }}>
-            <FormControl fullWidth disabled={!provider.enabled}>
+            <FormControl fullWidth>
               <InputLabel>Provider Filter</InputLabel>
               <Select
                 value={provider.providerFilter || 'all'}
@@ -332,7 +332,6 @@ const AIProviderCard = ({
                   onUpdate({ selectedModel: newValue.id });
                 }
               }}
-              disabled={!provider.enabled}
               loading={modelsLoading}
               renderInput={(params) => (
                 <TextField
@@ -342,9 +341,11 @@ const AIProviderCard = ({
                   helperText={
                     modelsLoading
                       ? 'Loading models...'
-                      : modelsSource === 'openrouter'
-                        ? `${dynamicModels.length} models loaded from OpenRouter API`
-                        : 'Using default model list (add API key for full list)'
+                      : !provider.enabled
+                        ? `${dynamicModels.length} models available (enable provider to use)`
+                        : modelsSource === 'openrouter'
+                          ? `${dynamicModels.length} models loaded from OpenRouter API`
+                          : 'Using default model list (add API key for full list)'
                   }
                   InputProps={{
                     ...params.InputProps,
