@@ -17448,25 +17448,33 @@ _available_agents = {
 
 # ============================================================================
 # AI-POWERED AGENT RESPONSE SYSTEM
-# Integrates with OpenAI/Anthropic APIs for intelligent responses
+# Integrates with OpenRouter API for intelligent responses (supports multiple AI models)
+# OpenRouter provides unified access to OpenAI, Anthropic, Google, Meta, and more
 # Falls back to template responses if no API keys are configured
 # ============================================================================
 
 class AIAgentEngine:
-    """AI-powered agent response engine supporting multiple providers"""
+    """AI-powered agent response engine using OpenRouter API (unified access to multiple AI providers)"""
     
     def __init__(self):
+        # OpenRouter API (unified access to multiple AI models)
+        self.openrouter_api_key = os.environ.get("OPENROUTER_API_KEY", "")
+        self.openrouter_model = os.environ.get("OPENROUTER_MODEL", "anthropic/claude-3.5-sonnet")
+        
+        # Legacy support for direct API keys (fallback)
         self.openai_api_key = os.environ.get("OPENAI_API_KEY", "")
         self.anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-        self.ai_provider = os.environ.get("HEXSTRIKE_AI_PROVIDER", "auto")  # auto, openai, anthropic
-        self.ai_enabled = bool(self.openai_api_key or self.anthropic_api_key)
+        
+        self.ai_enabled = bool(self.openrouter_api_key or self.openai_api_key or self.anthropic_api_key)
         
         if self.ai_enabled:
             logger.info("🤖 AI Agent Engine initialized with external AI provider")
+            if self.openrouter_api_key:
+                logger.info(f"  ├─ OpenRouter API: Available (model: {self.openrouter_model})")
             if self.openai_api_key:
-                logger.info("  ├─ OpenAI API: Available")
+                logger.info("  ├─ OpenAI API: Available (legacy)")
             if self.anthropic_api_key:
-                logger.info("  └─ Anthropic API: Available")
+                logger.info("  └─ Anthropic API: Available (legacy)")
         else:
             logger.info("🤖 AI Agent Engine initialized (template mode - set OPENAI_API_KEY or ANTHROPIC_API_KEY for AI responses)")
     
@@ -17609,30 +17617,95 @@ Structure reports for both technical and executive audiences."""
         
         return base_prompt
     
-    def generate_response(self, agent: dict, message: str) -> tuple:
-        """Generate AI response for agent message. Returns (response, tools_used, ai_provider)"""
+    def generate_response(self, agent: dict, message: str, ai_config: dict = None) -> tuple:
+        """Generate AI response for agent message. Returns (response, tools_used, ai_provider)
         
-        # Try AI providers in order
-        if self.ai_enabled:
-            # Determine provider
-            provider = self.ai_provider
-            if provider == "auto":
-                provider = "anthropic" if self.anthropic_api_key else "openai"
-            
+        Args:
+            agent: Agent configuration dict
+            message: User message
+            ai_config: Optional AI configuration from frontend (openRouterApiKey, openRouterModel, openRouterEnabled)
+        """
+        
+        # Get AI config from request or fall back to environment variables
+        openrouter_api_key = None
+        openrouter_model = self.openrouter_model
+        
+        if ai_config:
+            # Use frontend-provided configuration
+            if ai_config.get("openRouterEnabled") and ai_config.get("openRouterApiKey"):
+                openrouter_api_key = ai_config.get("openRouterApiKey")
+                openrouter_model = ai_config.get("openRouterModel", self.openrouter_model)
+        else:
+            # Use environment variable configuration
+            openrouter_api_key = self.openrouter_api_key
+        
+        # Try OpenRouter first (preferred method)
+        if openrouter_api_key:
             try:
-                if provider == "anthropic" and self.anthropic_api_key:
-                    response, tools = self._call_anthropic(agent, message)
-                    return response, tools, "anthropic"
-                elif provider == "openai" and self.openai_api_key:
-                    response, tools = self._call_openai(agent, message)
-                    return response, tools, "openai"
+                response, tools = self._call_openrouter(agent, message, openrouter_api_key, openrouter_model)
+                return response, tools, f"openrouter:{openrouter_model}"
             except Exception as e:
-                logger.warning(f"AI provider {provider} failed: {str(e)}, falling back to templates")
+                logger.warning(f"OpenRouter API failed: {str(e)}, trying fallback providers")
+        
+        # Try legacy providers (fallback)
+        if self.anthropic_api_key:
+            try:
+                response, tools = self._call_anthropic(agent, message)
+                return response, tools, "anthropic"
+            except Exception as e:
+                logger.warning(f"Anthropic API failed: {str(e)}, falling back to templates")
+        
+        if self.openai_api_key:
+            try:
+                response, tools = self._call_openai(agent, message)
+                return response, tools, "openai"
+            except Exception as e:
+                logger.warning(f"OpenAI API failed: {str(e)}, falling back to templates")
         
         # Fall back to template responses
         response = self._generate_template_response(agent, message)
         tools = self._get_tools_for_message(message, agent)
         return response, tools, "template"
+    
+    def _call_openrouter(self, agent: dict, message: str, api_key: str, model: str) -> tuple:
+        """Call OpenRouter API for response generation (unified access to multiple AI providers)"""
+        import requests as req
+        
+        system_prompt = self.get_system_prompt(agent)
+        
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "HTTP-Referer": "https://hexstrike.ai",
+            "X-Title": "HexStrike AI Security Platform",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": message}
+            ],
+            "temperature": 0.7,
+            "max_tokens": 2000
+        }
+        
+        response = req.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=60
+        )
+        response.raise_for_status()
+        
+        result = response.json()
+        content = result["choices"][0]["message"]["content"]
+        
+        # Extract tools mentioned in response
+        tools = self._extract_tools_from_response(content)
+        
+        logger.info(f"OpenRouter response generated using model: {model}")
+        return content, tools
     
     def _call_openai(self, agent: dict, message: str) -> tuple:
         """Call OpenAI API for response generation"""
@@ -17968,10 +18041,19 @@ def deactivate_agent(agent_id: str):
 
 @app.route("/api/agents/<agent_id>/message", methods=["POST"])
 def send_agent_message(agent_id: str):
-    """Send a message to an agent and get an AI-powered response"""
+    """Send a message to an agent and get an AI-powered response
+    
+    Request body can include:
+    - message: The user message (required)
+    - aiConfig: Optional AI configuration from frontend settings
+        - openRouterApiKey: OpenRouter API key
+        - openRouterModel: Model to use (e.g., 'anthropic/claude-3.5-sonnet')
+        - openRouterEnabled: Whether OpenRouter is enabled
+    """
     try:
         data = request.get_json()
         message = data.get("message", "")
+        ai_config = data.get("aiConfig")  # Optional AI config from frontend
         
         if not message:
             return jsonify({"error": "Message is required"}), 400
@@ -17984,9 +18066,11 @@ def send_agent_message(agent_id: str):
         
         # Log message metadata only (not content for security)
         logger.info(f"Agent {agent_id} ({agent['name']}) received message (length: {len(message)})")
+        if ai_config:
+            logger.info(f"  Using frontend AI config: enabled={ai_config.get('openRouterEnabled')}, model={ai_config.get('openRouterModel')}")
         
         # Use AI-powered agent engine for response generation
-        response_content, tools_used, ai_provider = _ai_agent_engine.generate_response(agent, message)
+        response_content, tools_used, ai_provider = _ai_agent_engine.generate_response(agent, message, ai_config)
         
         logger.info(f"Agent {agent_id} responded using {ai_provider} provider")
         
@@ -18012,16 +18096,26 @@ def get_ai_config():
         return jsonify({
             "success": True,
             "ai_enabled": _ai_agent_engine.ai_enabled,
-            "provider": _ai_agent_engine.ai_provider,
+            "openrouter_configured": bool(_ai_agent_engine.openrouter_api_key),
+            "openrouter_model": _ai_agent_engine.openrouter_model,
             "openai_configured": bool(_ai_agent_engine.openai_api_key),
             "anthropic_configured": bool(_ai_agent_engine.anthropic_api_key),
             "instructions": {
-                "openai": "Set OPENAI_API_KEY environment variable to enable OpenAI responses",
-                "anthropic": "Set ANTHROPIC_API_KEY environment variable to enable Anthropic/Claude responses",
-                "model_config": {
-                    "openai_model": os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
-                    "anthropic_model": os.environ.get("ANTHROPIC_MODEL", "claude-3-haiku-20240307")
-                }
+                "openrouter": "Configure OpenRouter API key in Settings > OpenRouter AI Configuration, or set OPENROUTER_API_KEY environment variable",
+                "openai": "Set OPENAI_API_KEY environment variable for legacy OpenAI direct access",
+                "anthropic": "Set ANTHROPIC_API_KEY environment variable for legacy Anthropic direct access",
+                "frontend_config": "The frontend can pass AI configuration with each message request via the aiConfig parameter"
+            },
+            "supported_features": {
+                "openrouter_models": [
+                    "anthropic/claude-3.5-sonnet",
+                    "openai/gpt-4o",
+                    "openai/gpt-4o-mini",
+                    "google/gemini-pro-1.5",
+                    "meta-llama/llama-3.1-70b-instruct",
+                    "x-ai/grok-3-fast-code-1"
+                ],
+                "accepts_frontend_config": True
             },
             "timestamp": datetime.now().isoformat()
         })

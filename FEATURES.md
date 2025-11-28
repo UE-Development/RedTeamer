@@ -57,39 +57,68 @@
 
 ## 🤖 AI-Powered Agent Responses
 
-HexStrike AI now supports intelligent, context-aware responses from AI agents using external AI providers.
+HexStrike AI supports intelligent, context-aware responses from AI agents using **OpenRouter** (unified access to 50+ AI models) or direct API access to OpenAI/Anthropic.
 
-### Configuration
+### Recommended: Frontend Configuration (OpenRouter)
 
-Set one of the following environment variables to enable AI-powered responses:
+Configure OpenRouter in the **Settings** page under "OpenRouter AI Configuration":
+1. Get an API key from [openrouter.ai/keys](https://openrouter.ai/keys)
+2. Enable OpenRouter and paste your API key
+3. Select your preferred model from 50+ options:
+   - **Top Choices**: Claude 3.5 Sonnet, GPT-4o, GPT-4o Mini, Grok Fast Code
+   - **Anthropic**: Claude 3 Opus, Claude 3 Sonnet, Claude 3 Haiku
+   - **OpenAI**: GPT-4 Turbo, GPT-4, O1 Preview, O1 Mini
+   - **Google**: Gemini Pro 1.5, Gemini 1.5 Flash
+   - **Meta**: Llama 3.1 405B, Llama 3.1 70B, CodeLlama 70B
+   - **Mistral**: Mistral Large, Mixtral 8x22B, Codestral
+   - **xAI**: Grok 3, Grok Fast Code 1
+
+The frontend automatically sends the AI configuration with each agent message request.
+
+### Alternative: Environment Variables
 
 ```bash
-# For OpenAI (GPT-4o, GPT-4, etc.)
-export OPENAI_API_KEY="sk-your-openai-api-key"
-export OPENAI_MODEL="gpt-4o-mini"  # Optional, defaults to gpt-4o-mini
+# For OpenRouter (unified API access to 50+ models)
+export OPENROUTER_API_KEY="sk-or-v1-your-openrouter-api-key"
+export OPENROUTER_MODEL="anthropic/claude-3.5-sonnet"  # Optional
 
-# For Anthropic (Claude)
+# Legacy: Direct OpenAI access
+export OPENAI_API_KEY="sk-your-openai-api-key"
+export OPENAI_MODEL="gpt-4o-mini"  # Optional
+
+# Legacy: Direct Anthropic access
 export ANTHROPIC_API_KEY="sk-ant-your-anthropic-api-key"
 export ANTHROPIC_MODEL="claude-3-haiku-20240307"  # Optional
-
-# Provider selection (auto, openai, anthropic)
-export HEXSTRIKE_AI_PROVIDER="auto"  # Defaults to auto
 ```
 
 ### Features
 
-- **Context-aware responses**: Each agent type has specialized system prompts
-- **Tool recommendations**: AI automatically suggests relevant security tools
-- **Multiple providers**: Supports OpenAI and Anthropic APIs
+- **OpenRouter Integration**: Access 50+ AI models through a single API
+- **Frontend Configuration**: Configure AI settings directly in the Settings page
+- **Context-aware responses**: Each of the 12 agent types has specialized system prompts
+- **Tool recommendations**: AI automatically suggests relevant security tools from 162+ available
 - **Graceful fallback**: Falls back to template responses if no API keys configured
-- **Agent-specific expertise**: Each of the 12 agents has unique capabilities and knowledge
+- **Multiple providers**: Supports OpenRouter (recommended), OpenAI, and Anthropic APIs
 
 ### API Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/agents/<id>/message` | POST | Send message to agent, get AI response |
+| `/api/agents/<id>/message` | POST | Send message to agent (accepts `aiConfig` in body) |
 | `/api/agents/ai-config` | GET | Check AI configuration status |
+
+### Request Body for Agent Messages
+
+```json
+{
+  "message": "Scan example.com for vulnerabilities",
+  "aiConfig": {
+    "openRouterApiKey": "sk-or-v1-...",
+    "openRouterModel": "anthropic/claude-3.5-sonnet",
+    "openRouterEnabled": true
+  }
+}
+```
 
 ---
 
@@ -101,13 +130,13 @@ RedTeamer/
 │   ├── src/
 │   │   ├── pages/              # 9 pages implemented
 │   │   │   ├── Dashboard.tsx       ✅ Security overview, charts
-│   │   │   ├── AgentsPage.tsx      ✅ 12 AI agents
+│   │   │   ├── AgentsPage.tsx      ✅ 12 AI agents + OpenRouter integration
 │   │   │   ├── ToolsPage.tsx       ✅ 162 security tools
 │   │   │   ├── ScansPage.tsx       ✅ Scan management
 │   │   │   ├── VulnerabilitiesPage.tsx  ✅ Vulnerability tracking
 │   │   │   ├── ReportsPage.tsx     ✅ Report generation
 │   │   │   ├── ProjectsPage.tsx    ✅ Project management
-│   │   │   ├── SettingsPage.tsx    ✅ Configuration
+│   │   │   ├── SettingsPage.tsx    ✅ Configuration + OpenRouter AI
 │   │   │   └── LoginPage.tsx       ✅ Authentication
 │   │   ├── components/         # Reusable UI components
 │   │   │   ├── agents/             ✅ Agent cards, status

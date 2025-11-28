@@ -82,8 +82,15 @@ class ApiClient {
     return response.data;
   }
 
-  async sendAgentMessage(agentId: string, message: string): Promise<ApiResponse> {
-    const response = await this.client.post(`/api/agents/${agentId}/message`, { message });
+  async sendAgentMessage(agentId: string, message: string, aiConfig?: {
+    openRouterApiKey?: string;
+    openRouterModel?: string;
+    openRouterEnabled?: boolean;
+  }): Promise<ApiResponse> {
+    const response = await this.client.post(`/api/agents/${agentId}/message`, { 
+      message,
+      aiConfig: aiConfig || undefined
+    });
     return response.data;
   }
 
