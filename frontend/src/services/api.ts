@@ -94,10 +94,11 @@ class ApiClient {
     return response.data;
   }
 
-  async getAIModels(apiKey?: string, provider?: string): Promise<ApiResponse> {
+  async getAIModels(apiKey?: string, providerFilter?: string, providerType?: string): Promise<ApiResponse> {
     const params = new URLSearchParams();
     if (apiKey) params.append('api_key', apiKey);
-    if (provider) params.append('provider', provider);
+    if (providerFilter) params.append('provider', providerFilter);
+    if (providerType) params.append('provider_type', providerType);
     const response = await this.client.get(`/api/agents/models?${params.toString()}`);
     return response.data;
   }

@@ -128,7 +128,7 @@ const Sidebar = ({ open, drawerWidth, onClose, isMobile = false, onNavigate }: S
     </>
   );
 
-  // Use SwipeableDrawer for mobile, persistent Drawer for desktop
+  // Use SwipeableDrawer for mobile, permanent Drawer for desktop
   if (isMobile) {
     return (
       <SwipeableDrawer
@@ -151,10 +151,10 @@ const Sidebar = ({ open, drawerWidth, onClose, isMobile = false, onNavigate }: S
     );
   }
 
+  // Permanent drawer for desktop - always visible, doesn't overlap content
   return (
     <Drawer
-      variant="persistent"
-      open={open}
+      variant="permanent"
       sx={{
         width: drawerWidth,
         flexShrink: 0,

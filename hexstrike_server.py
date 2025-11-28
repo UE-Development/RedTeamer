@@ -18125,15 +18125,17 @@ def get_ai_config():
 
 @app.route("/api/agents/models", methods=["GET"])
 def get_ai_models():
-    """Fetch available AI models from OpenRouter API
+    """Fetch available AI models from AI provider APIs
     
     Query parameters:
-    - api_key: OpenRouter API key (optional, uses env var if not provided)
+    - api_key: API key (optional, uses env var if not provided)
     - provider: Filter by provider (optional, e.g., 'anthropic', 'openai', 'google')
+    - provider_type: Which AI provider to query ('openrouter', 'openai', 'anthropic', 'custom')
     """
     try:
         api_key = request.args.get('api_key') or os.environ.get("OPENROUTER_API_KEY", "")
         provider_filter = request.args.get('provider', 'all')
+        provider_type = request.args.get('provider_type', 'openrouter')
         
         if not api_key:
             # Return a static fallback list if no API key
@@ -18156,7 +18158,23 @@ def get_ai_models():
                 "timestamp": datetime.now().isoformat()
             })
         
-        # Fetch models from OpenRouter API
+        # Determine which API to fetch from based on provider_type
+        if provider_type == 'openai':
+            return _fetch_openai_models(api_key, provider_filter)
+        elif provider_type == 'anthropic':
+            return _fetch_anthropic_models(api_key, provider_filter)
+        elif provider_type == 'custom':
+            # For custom provider, return static models
+            return jsonify({
+                "success": True,
+                "source": "static",
+                "message": "Custom provider selected. Configure your model manually.",
+                "providers": [{"id": "custom", "name": "Custom"}],
+                "models": [],
+                "timestamp": datetime.now().isoformat()
+            })
+        
+        # Default: Fetch models from OpenRouter API
         headers = {
             "Authorization": f"Bearer {api_key}",
             "HTTP-Referer": "https://hexstrike.ai",
@@ -18268,6 +18286,105 @@ def get_ai_models():
     except Exception as e:
         logger.error(f"Error getting AI models: {str(e)}")
         return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+def _fetch_openai_models(api_key: str, provider_filter: str) -> tuple:
+    """Fetch available models from OpenAI API"""
+    try:
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+        }
+        
+        response = requests.get(
+            "https://api.openai.com/v1/models",
+            headers=headers,
+            timeout=30
+        )
+        response.raise_for_status()
+        
+        data = response.json()
+        models = data.get("data", [])
+        
+        # Filter and transform OpenAI models
+        transformed_models = []
+        for model in models:
+            model_id = model.get("id", "")
+            # Only include chat models (skip embeddings, whisper, etc.)
+            if any(x in model_id for x in ["gpt", "o1", "o3", "chatgpt"]):
+                transformed_models.append({
+                    "id": f"openai/{model_id}",
+                    "name": model_id.replace("-", " ").title(),
+                    "provider": "openai",
+                    "description": "",
+                    "context_length": None,
+                    "priceIn": None,
+                    "priceOut": None,
+                })
+        
+        # Sort models by name
+        transformed_models.sort(key=lambda x: x["name"])
+        
+        logger.info(f"Fetched {len(transformed_models)} models from OpenAI API")
+        
+        return jsonify({
+            "success": True,
+            "source": "openai",
+            "providers": [
+                {"id": "openai", "name": "OpenAI"},
+            ],
+            "models": transformed_models,
+            "total_count": len(models),
+            "filtered_count": len(transformed_models),
+            "timestamp": datetime.now().isoformat()
+        })
+        
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"Failed to fetch models from OpenAI: {str(e)}")
+        # Return static fallback on API error
+        return jsonify({
+            "success": True,
+            "source": "static",
+            "message": f"Could not fetch from OpenAI API: {str(e)}. Showing default models.",
+            "providers": [{"id": "openai", "name": "OpenAI"}],
+            "models": _get_static_openai_models(),
+            "timestamp": datetime.now().isoformat()
+        })
+
+def _fetch_anthropic_models(api_key: str, provider_filter: str) -> tuple:
+    """Fetch available models from Anthropic - returns static list as Anthropic doesn't have a models API"""
+    # Anthropic doesn't have a public models endpoint, so we return a curated list
+    models = [
+        {"id": "anthropic/claude-sonnet-4-20250514", "name": "Claude Sonnet 4", "provider": "anthropic", "description": "Latest Claude Sonnet model", "priceIn": 3.00, "priceOut": 15.00, "context_length": 200000},
+        {"id": "anthropic/claude-3.5-sonnet-20241022", "name": "Claude 3.5 Sonnet (Latest)", "provider": "anthropic", "description": "Best for security analysis", "priceIn": 3.00, "priceOut": 15.00, "context_length": 200000},
+        {"id": "anthropic/claude-3.5-sonnet-20240620", "name": "Claude 3.5 Sonnet", "provider": "anthropic", "description": "Balanced performance", "priceIn": 3.00, "priceOut": 15.00, "context_length": 200000},
+        {"id": "anthropic/claude-3.5-haiku-20241022", "name": "Claude 3.5 Haiku", "provider": "anthropic", "description": "Fast and efficient", "priceIn": 0.80, "priceOut": 4.00, "context_length": 200000},
+        {"id": "anthropic/claude-3-opus-20240229", "name": "Claude 3 Opus", "provider": "anthropic", "description": "Most capable model", "priceIn": 15.00, "priceOut": 75.00, "context_length": 200000},
+        {"id": "anthropic/claude-3-sonnet-20240229", "name": "Claude 3 Sonnet", "provider": "anthropic", "priceIn": 3.00, "priceOut": 15.00, "context_length": 200000},
+        {"id": "anthropic/claude-3-haiku-20240307", "name": "Claude 3 Haiku", "provider": "anthropic", "description": "Fast and affordable", "priceIn": 0.25, "priceOut": 1.25, "context_length": 200000},
+    ]
+    
+    logger.info(f"Returning {len(models)} Anthropic models")
+    
+    return jsonify({
+        "success": True,
+        "source": "anthropic",
+        "providers": [{"id": "anthropic", "name": "Anthropic"}],
+        "models": models,
+        "total_count": len(models),
+        "filtered_count": len(models),
+        "timestamp": datetime.now().isoformat()
+    })
+
+def _get_static_openai_models() -> list:
+    """Return static fallback list of OpenAI models"""
+    return [
+        {"id": "openai/gpt-4o", "name": "GPT-4o", "provider": "openai", "description": "Fastest GPT-4 model", "priceIn": 2.50, "priceOut": 10.00},
+        {"id": "openai/gpt-4o-mini", "name": "GPT-4o Mini", "provider": "openai", "description": "Fast and cost-effective", "priceIn": 0.15, "priceOut": 0.60},
+        {"id": "openai/gpt-4-turbo", "name": "GPT-4 Turbo", "provider": "openai", "priceIn": 10.00, "priceOut": 30.00},
+        {"id": "openai/gpt-4", "name": "GPT-4", "provider": "openai", "priceIn": 30.00, "priceOut": 60.00},
+        {"id": "openai/o1-preview", "name": "O1 Preview", "provider": "openai", "description": "Reasoning model", "priceIn": 15.00, "priceOut": 60.00},
+        {"id": "openai/o1-mini", "name": "O1 Mini", "provider": "openai", "description": "Fast reasoning", "priceIn": 3.00, "priceOut": 12.00},
+        {"id": "openai/gpt-3.5-turbo", "name": "GPT-3.5 Turbo", "provider": "openai", "description": "Fast and affordable", "priceIn": 0.50, "priceOut": 1.50},
+    ]
 
 def _get_static_models(provider_filter: str = "all") -> list:
     """Return static fallback list of popular AI models"""

@@ -83,12 +83,13 @@ const TopBar = ({ onMenuClick, drawerWidth, open }: TopBarProps) => {
       }}
     >
       <Toolbar sx={{ px: { xs: 1, sm: 2 } }}>
+        {/* Only show menu icon on mobile */}
         <IconButton
           color="inherit"
           aria-label="open drawer"
           edge="start"
           onClick={onMenuClick}
-          sx={{ mr: { xs: 1, sm: 2 } }}
+          sx={{ mr: { xs: 1, sm: 2 }, display: { md: 'none' } }}
         >
           <MenuIcon />
         </IconButton>
