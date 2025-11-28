@@ -14,7 +14,8 @@ const DRAWER_WIDTH = 240;
 const MainLayout = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
+  // Initialize sidebar state: closed on mobile, open on desktop
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const handleDrawerToggle = () => {
     setSidebarOpen(!sidebarOpen);
@@ -28,8 +29,8 @@ const MainLayout = () => {
   };
 
   return (
-    <Box sx={{ display: 'flex', width: '100%' }}>
-      <TopBar onMenuClick={handleDrawerToggle} drawerWidth={DRAWER_WIDTH} open={sidebarOpen} />
+    <Box sx={{ display: 'flex', width: '100%', minHeight: '100vh', overflow: 'hidden' }}>
+      <TopBar onMenuClick={handleDrawerToggle} drawerWidth={DRAWER_WIDTH} open={sidebarOpen && !isMobile} />
       <Sidebar 
         open={sidebarOpen} 
         drawerWidth={DRAWER_WIDTH} 
@@ -44,10 +45,13 @@ const MainLayout = () => {
           p: { xs: 1.5, sm: 2, md: 3 },
           width: { 
             xs: '100%',
-            md: `calc(100% - ${sidebarOpen ? DRAWER_WIDTH : 0}px)` 
+            md: sidebarOpen ? `calc(100% - ${DRAWER_WIDTH}px)` : '100%'
           },
+          maxWidth: '100%',
           minHeight: '100vh',
           bgcolor: 'background.default',
+          overflowX: 'hidden',
+          boxSizing: 'border-box',
           transition: theme.transitions.create(['width', 'margin'], {
             easing: theme.transitions.easing.sharp,
             duration: theme.transitions.duration.leavingScreen,

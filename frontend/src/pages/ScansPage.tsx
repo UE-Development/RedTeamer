@@ -280,14 +280,27 @@ const ScansPage = () => {
   };
 
   return (
-    <Box>
+    <Box sx={{ maxWidth: '100%', overflowX: 'hidden' }}>
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" sx={{ fontWeight: 700 }}>
-          <RadarIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: { xs: 'column', sm: 'row' },
+        justifyContent: 'space-between', 
+        alignItems: { xs: 'flex-start', sm: 'center' }, 
+        mb: 3,
+        gap: { xs: 1.5, sm: 0 }
+      }}>
+        <Typography 
+          variant="h4" 
+          sx={{ 
+            fontWeight: 700,
+            fontSize: { xs: '1.5rem', sm: '2rem', md: '2.125rem' },
+          }}
+        >
+          <RadarIcon sx={{ mr: 1, verticalAlign: 'middle', fontSize: { xs: '1.5rem', sm: '2rem' } }} />
           Security Scans
         </Typography>
-        <ButtonGroup variant="contained">
+        <ButtonGroup variant="contained" size="small">
           <Button startIcon={<AddIcon />} onClick={() => setWizardOpen(true)}>
             New Scan
           </Button>
@@ -341,10 +354,10 @@ const ScansPage = () => {
         </Alert>
       </Snackbar>
 
-      <Grid container spacing={3}>
+      <Grid container spacing={{ xs: 2, md: 3 }}>
         {/* Scans List */}
         <Grid size={{ xs: 12, md: 5 }}>
-          <Paper sx={{ height: '70vh', overflow: 'auto' }}>
+          <Paper sx={{ height: { xs: 'auto', md: '70vh' }, maxHeight: { xs: '50vh', md: '70vh' }, overflow: 'auto' }}>
             <List>
               {scans.map((scan, index) => (
                 <Box key={scan.id}>
@@ -408,12 +421,27 @@ const ScansPage = () => {
         {/* Scan Details */}
         <Grid size={{ xs: 12, md: 7 }}>
           {selectedScan ? (
-            <Card sx={{ height: '70vh', overflow: 'auto' }}>
-              <CardContent>
+            <Card sx={{ height: { xs: 'auto', md: '70vh' }, overflow: 'auto' }}>
+              <CardContent sx={{ p: { xs: 2, md: 3 } }}>
                 {/* Header */}
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
+                <Box sx={{ 
+                  display: 'flex', 
+                  flexDirection: { xs: 'column', sm: 'row' },
+                  justifyContent: 'space-between', 
+                  alignItems: { xs: 'flex-start', sm: 'flex-start' }, 
+                  mb: 3,
+                  gap: { xs: 1, sm: 0 }
+                }}>
                   <Box>
-                    <Typography variant="h5" sx={{ fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
+                    <Typography 
+                      variant="h5" 
+                      sx={{ 
+                        fontWeight: 700, 
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontSize: { xs: '1.1rem', sm: '1.5rem' },
+                        wordBreak: 'break-all'
+                      }}
+                    >
                       {selectedScan.target}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
@@ -424,6 +452,7 @@ const ScansPage = () => {
                     label={selectedScan.status.toUpperCase()}
                     color={getStatusColor(selectedScan.status)}
                     icon={getStatusIcon(selectedScan.status) || undefined}
+                    size="small"
                   />
                 </Box>
 

@@ -266,25 +266,41 @@ const VulnerabilitiesPage = () => {
   }, []);
 
   return (
-    <Box>
+    <Box sx={{ maxWidth: '100%', overflowX: 'hidden' }}>
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" sx={{ fontWeight: 700 }}>
-          <BugReportIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: { xs: 'column', sm: 'row' },
+        justifyContent: 'space-between', 
+        alignItems: { xs: 'flex-start', sm: 'center' }, 
+        mb: 3,
+        gap: { xs: 1.5, sm: 0 }
+      }}>
+        <Typography 
+          variant="h4" 
+          sx={{ 
+            fontWeight: 700,
+            fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' },
+          }}
+        >
+          <BugReportIcon sx={{ mr: 1, verticalAlign: 'middle', fontSize: { xs: '1.25rem', sm: '1.75rem' } }} />
           Vulnerability Management
         </Typography>
-        <Box sx={{ display: 'flex', gap: 1 }}>
+        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
           <Chip
             label={`${vulnerabilityStats.critical} Critical`}
             sx={{ bgcolor: '#b71c1c', color: 'white', fontWeight: 600 }}
+            size="small"
           />
           <Chip
             label={`${vulnerabilityStats.high} High`}
             sx={{ bgcolor: '#ff5252', color: 'white', fontWeight: 600 }}
+            size="small"
           />
           <Chip
             label={`${vulnerabilityStats.medium} Medium`}
             sx={{ bgcolor: '#ff9800', color: 'white', fontWeight: 600 }}
+            size="small"
           />
         </Box>
       </Box>
@@ -294,11 +310,14 @@ const VulnerabilitiesPage = () => {
         <Tabs
           value={activeTab}
           onChange={(_, newValue) => setActiveTab(newValue)}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
           sx={{ borderBottom: 1, borderColor: 'divider' }}
         >
-          <Tab icon={<ListIcon />} label="Vulnerabilities" iconPosition="start" />
-          <Tab icon={<ShieldIcon />} label="Risk Assessment" iconPosition="start" />
-          <Tab icon={<CalculateIcon />} label="CVSS Calculator" iconPosition="start" />
+          <Tab icon={<ListIcon />} label="Vulnerabilities" iconPosition="start" sx={{ minWidth: { xs: 'auto', sm: 120 }, px: { xs: 1, sm: 2 } }} />
+          <Tab icon={<ShieldIcon />} label="Risk Assessment" iconPosition="start" sx={{ minWidth: { xs: 'auto', sm: 120 }, px: { xs: 1, sm: 2 } }} />
+          <Tab icon={<CalculateIcon />} label="CVSS Calculator" iconPosition="start" sx={{ minWidth: { xs: 'auto', sm: 120 }, px: { xs: 1, sm: 2 } }} />
         </Tabs>
       </Paper>
 
@@ -306,8 +325,8 @@ const VulnerabilitiesPage = () => {
       {activeTab === 0 && (
         <>
           {/* Filters */}
-          <Paper sx={{ p: 2, mb: 3 }}>
-            <Grid container spacing={2} alignItems="center">
+          <Paper sx={{ p: { xs: 1.5, sm: 2 }, mb: 3 }}>
+            <Grid container spacing={{ xs: 1.5, sm: 2 }} alignItems="center">
               <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
                   fullWidth

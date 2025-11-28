@@ -204,19 +204,26 @@ const SettingsPage = () => {
   };
 
   return (
-    <Box>
-      <Typography variant="h4" sx={{ mb: 3, fontWeight: 700 }}>
-        <SettingsIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+    <Box sx={{ maxWidth: '100%', overflowX: 'hidden' }}>
+      <Typography 
+        variant="h4" 
+        sx={{ 
+          mb: 3, 
+          fontWeight: 700,
+          fontSize: { xs: '1.5rem', sm: '2rem', md: '2.125rem' },
+        }}
+      >
+        <SettingsIcon sx={{ mr: 1, verticalAlign: 'middle', fontSize: { xs: '1.5rem', sm: '2rem' } }} />
         Settings
       </Typography>
 
-      <Grid container spacing={3}>
+      <Grid container spacing={{ xs: 2, md: 3 }}>
         {/* MCP Server Configuration */}
         <Grid size={12}>
-          <Paper sx={{ p: 3 }}>
+          <Paper sx={{ p: { xs: 2, md: 3 } }}>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
               <DnsIcon sx={{ mr: 1, color: 'primary.main' }} />
-              <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              <Typography variant="h6" sx={{ fontWeight: 600, fontSize: { xs: '1rem', sm: '1.25rem' } }}>
                 MCP Server Configuration
               </Typography>
             </Box>
@@ -224,7 +231,7 @@ const SettingsPage = () => {
               Configure the HexStrike AI MCP (Model Context Protocol) server settings for AI agent communication.
             </Typography>
 
-            <Grid container spacing={3}>
+            <Grid container spacing={{ xs: 2, md: 3 }}>
               <Grid size={{ xs: 12, md: 6 }}>
                 <Card
                   sx={{
