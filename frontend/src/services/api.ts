@@ -82,8 +82,23 @@ class ApiClient {
     return response.data;
   }
 
-  async sendAgentMessage(agentId: string, message: string): Promise<ApiResponse> {
-    const response = await this.client.post(`/api/agents/${agentId}/message`, { message });
+  async sendAgentMessage(agentId: string, message: string, aiConfig?: {
+    openRouterApiKey?: string;
+    openRouterModel?: string;
+    openRouterEnabled?: boolean;
+  }): Promise<ApiResponse> {
+    const response = await this.client.post(`/api/agents/${agentId}/message`, { 
+      message,
+      aiConfig: aiConfig || undefined
+    });
+    return response.data;
+  }
+
+  async getAIModels(apiKey?: string, provider?: string): Promise<ApiResponse> {
+    const params = new URLSearchParams();
+    if (apiKey) params.append('api_key', apiKey);
+    if (provider) params.append('provider', provider);
+    const response = await this.client.get(`/api/agents/models?${params.toString()}`);
     return response.data;
   }
 

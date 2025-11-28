@@ -1,9 +1,10 @@
 /**
  * Vulnerabilities Page - Vulnerability Management
  * Display and manage discovered security vulnerabilities
+ * Supports both demo mode (mock data) and real backend data
  */
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -19,12 +20,14 @@ import {
   Button,
   Tabs,
   Tab,
+  Alert,
 } from '@mui/material';
 import BugReportIcon from '@mui/icons-material/BugReport';
 import SearchIcon from '@mui/icons-material/Search';
 import CalculateIcon from '@mui/icons-material/Calculate';
 import ShieldIcon from '@mui/icons-material/Shield';
 import ListIcon from '@mui/icons-material/List';
+import InfoIcon from '@mui/icons-material/Info';
 import { 
   VulnerabilityCard, 
   CVSSCalculator, 
@@ -32,7 +35,66 @@ import {
   RiskScoringSystem 
 } from '../components/vulnerabilities';
 import { useAppSelector } from '../store';
-import type { Vulnerability, VulnerabilityStatus } from '../types';
+import type { Vulnerability, VulnerabilityStatus, VulnerabilitySeverity } from '../types';
+import { apiClient } from '../services/api';
+
+// Backend vulnerability response interface
+interface BackendVulnerability {
+  id: string;
+  title: string;
+  description: string;
+  severity: string;
+  cvssScore: number;
+  cveId?: string;
+  cweId?: string;
+  location: string;
+  discoveredBy: string;
+  discoveredAt: string;
+  status: string;
+  proofOfConcept?: string;
+  remediation?: string;
+  references?: string[];
+}
+
+// Valid vulnerability severities - extracted as module constant for reuse
+const VALID_SEVERITIES: VulnerabilitySeverity[] = ['critical', 'high', 'medium', 'low', 'info'];
+
+// Valid vulnerability statuses - extracted as module constant for reuse
+const VALID_STATUSES: VulnerabilityStatus[] = ['new', 'confirmed', 'false_positive', 'remediated'];
+
+// Helper to validate vulnerability severity
+function validateSeverity(severity: string): VulnerabilitySeverity {
+  return VALID_SEVERITIES.includes(severity as VulnerabilitySeverity) 
+    ? (severity as VulnerabilitySeverity) 
+    : 'medium';
+}
+
+// Helper to validate vulnerability status
+function validateStatus(status: string): VulnerabilityStatus {
+  return VALID_STATUSES.includes(status as VulnerabilityStatus) 
+    ? (status as VulnerabilityStatus) 
+    : 'new';
+}
+
+// Helper to transform backend vulnerability to frontend
+function transformBackendVuln(vuln: BackendVulnerability): Vulnerability {
+  return {
+    id: vuln.id,
+    title: vuln.title,
+    description: vuln.description,
+    severity: validateSeverity(vuln.severity),
+    cvssScore: vuln.cvssScore,
+    cveId: vuln.cveId,
+    cweId: vuln.cweId,
+    location: vuln.location,
+    discoveredBy: vuln.discoveredBy,
+    discoveredAt: vuln.discoveredAt,
+    status: validateStatus(vuln.status),
+    proofOfConcept: vuln.proofOfConcept,
+    remediation: vuln.remediation,
+    references: vuln.references,
+  };
+}
 
 // Mock vulnerabilities data for demo mode
 const MOCK_VULNERABILITIES: Vulnerability[] = [
@@ -228,9 +290,37 @@ const VulnerabilitiesPage = () => {
   const [selectedVulnerability, setSelectedVulnerability] = useState<Vulnerability | null>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [vulnerabilities, setVulnerabilities] = useState<Vulnerability[]>(MOCK_VULNERABILITIES);
+  const [backendVulnerabilities, setBackendVulnerabilities] = useState<Vulnerability[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Fetch vulnerabilities from backend
+  const fetchVulnerabilitiesFromBackend = useCallback(async () => {
+    if (mockDataEnabled) return;
+    
+    setIsLoading(true);
+    try {
+      const response = await apiClient.listVulnerabilities();
+      if (response.success && Array.isArray(response.data)) {
+        const transformedVulns = response.data.map((vuln: BackendVulnerability) => transformBackendVuln(vuln));
+        setBackendVulnerabilities(transformedVulns);
+      }
+    } catch (error) {
+      console.warn('Failed to fetch vulnerabilities from backend:', error instanceof Error ? error.message : 'Unknown error');
+      setBackendVulnerabilities([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [mockDataEnabled]);
+
+  // Fetch vulnerabilities when component mounts or mockDataEnabled changes
+  useEffect(() => {
+    if (!mockDataEnabled) {
+      fetchVulnerabilitiesFromBackend();
+    }
+  }, [mockDataEnabled, fetchVulnerabilitiesFromBackend]);
 
   // Get vulnerabilities based on mock data setting
-  const displayedVulnerabilities = mockDataEnabled ? vulnerabilities : [];
+  const displayedVulnerabilities = mockDataEnabled ? vulnerabilities : backendVulnerabilities;
 
   const filteredVulnerabilities = useMemo(() => {
     return displayedVulnerabilities.filter((vuln) => {
@@ -267,6 +357,21 @@ const VulnerabilitiesPage = () => {
 
   return (
     <Box sx={{ maxWidth: '100%', overflowX: 'hidden' }}>
+      {/* Info banner when demo mode is off */}
+      {!mockDataEnabled && (
+        <Alert 
+          severity="info" 
+          icon={<InfoIcon />}
+          sx={{ mb: 2 }}
+        >
+          {isLoading 
+            ? 'Loading vulnerabilities from backend...' 
+            : displayedVulnerabilities.length > 0 
+              ? `Showing ${displayedVulnerabilities.length} vulnerabilities from the backend.`
+              : 'No vulnerabilities discovered yet. Run a scan to discover vulnerabilities!'}
+        </Alert>
+      )}
+      
       {/* Header */}
       <Box sx={{ 
         display: 'flex', 

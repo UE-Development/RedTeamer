@@ -3,7 +3,7 @@
  * Includes MCP Server settings with external access configuration
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -28,6 +28,7 @@ import {
   InputAdornment,
   Autocomplete,
   ListSubheader,
+  CircularProgress,
 } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
 import DnsIcon from '@mui/icons-material/Dns';
@@ -45,7 +46,6 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
-import StarIcon from '@mui/icons-material/Star';
 import CodeIcon from '@mui/icons-material/Code';
 import EditIcon from '@mui/icons-material/Edit';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
@@ -63,95 +63,6 @@ import {
 } from '../store/slices/settingsSlice';
 import { apiClient } from '../services/api';
 
-// OpenRouter model definitions with categories and pricing (per 1M tokens)
-interface AIModel {
-  id: string;
-  name: string;
-  category: 'recommended' | 'anthropic' | 'openai' | 'google' | 'meta' | 'mistral' | 'xai' | 'other';
-  description?: string;
-  priceIn?: number;  // Price per 1M input tokens in USD
-  priceOut?: number; // Price per 1M output tokens in USD
-}
-
-const AI_MODELS: AIModel[] = [
-  // Recommended / Top Choices
-  { id: 'anthropic/claude-3.5-sonnet', name: '🌟 Claude 3.5 Sonnet', category: 'recommended', description: 'Best for security analysis', priceIn: 3.00, priceOut: 15.00 },
-  { id: 'openai/gpt-4o', name: '🌟 GPT-4o', category: 'recommended', description: 'Fastest GPT-4 model', priceIn: 2.50, priceOut: 10.00 },
-  { id: 'openai/gpt-4o-mini', name: '🌟 GPT-4o Mini', category: 'recommended', description: 'Fast and cost-effective', priceIn: 0.15, priceOut: 0.60 },
-  { id: 'x-ai/grok-3-fast-code-1', name: '🌟 Grok Fast Code 1', category: 'recommended', description: 'xAI code-optimized model', priceIn: 3.00, priceOut: 15.00 },
-  { id: 'anthropic/claude-3-opus', name: '🌟 Claude 3 Opus', category: 'recommended', description: 'Most capable model', priceIn: 15.00, priceOut: 75.00 },
-  { id: 'google/gemini-pro-1.5', name: '🌟 Gemini Pro 1.5', category: 'recommended', description: 'Long context window', priceIn: 1.25, priceOut: 5.00 },
-  
-  // Anthropic Models
-  { id: 'anthropic/claude-3.5-sonnet:beta', name: 'Claude 3.5 Sonnet (Beta)', category: 'anthropic', priceIn: 3.00, priceOut: 15.00 },
-  { id: 'anthropic/claude-3-sonnet', name: 'Claude 3 Sonnet', category: 'anthropic', priceIn: 3.00, priceOut: 15.00 },
-  { id: 'anthropic/claude-3-haiku', name: 'Claude 3 Haiku', category: 'anthropic', description: 'Fast and efficient', priceIn: 0.25, priceOut: 1.25 },
-  { id: 'anthropic/claude-2.1', name: 'Claude 2.1', category: 'anthropic', priceIn: 8.00, priceOut: 24.00 },
-  { id: 'anthropic/claude-2', name: 'Claude 2', category: 'anthropic', priceIn: 8.00, priceOut: 24.00 },
-  { id: 'anthropic/claude-instant-1.2', name: 'Claude Instant 1.2', category: 'anthropic', priceIn: 0.80, priceOut: 2.40 },
-  
-  // OpenAI Models
-  { id: 'openai/gpt-4-turbo', name: 'GPT-4 Turbo', category: 'openai', priceIn: 10.00, priceOut: 30.00 },
-  { id: 'openai/gpt-4-turbo-preview', name: 'GPT-4 Turbo Preview', category: 'openai', priceIn: 10.00, priceOut: 30.00 },
-  { id: 'openai/gpt-4', name: 'GPT-4', category: 'openai', priceIn: 30.00, priceOut: 60.00 },
-  { id: 'openai/gpt-4-32k', name: 'GPT-4 32K', category: 'openai', priceIn: 60.00, priceOut: 120.00 },
-  { id: 'openai/gpt-3.5-turbo', name: 'GPT-3.5 Turbo', category: 'openai', priceIn: 0.50, priceOut: 1.50 },
-  { id: 'openai/gpt-3.5-turbo-16k', name: 'GPT-3.5 Turbo 16K', category: 'openai', priceIn: 3.00, priceOut: 4.00 },
-  { id: 'openai/o1-preview', name: 'O1 Preview', category: 'openai', description: 'Reasoning model', priceIn: 15.00, priceOut: 60.00 },
-  { id: 'openai/o1-mini', name: 'O1 Mini', category: 'openai', description: 'Fast reasoning', priceIn: 3.00, priceOut: 12.00 },
-  
-  // Google Models
-  { id: 'google/gemini-pro', name: 'Gemini Pro', category: 'google', priceIn: 0.50, priceOut: 1.50 },
-  { id: 'google/gemini-pro-vision', name: 'Gemini Pro Vision', category: 'google', priceIn: 0.50, priceOut: 1.50 },
-  { id: 'google/gemini-1.5-pro', name: 'Gemini 1.5 Pro', category: 'google', priceIn: 1.25, priceOut: 5.00 },
-  { id: 'google/gemini-1.5-flash', name: 'Gemini 1.5 Flash', category: 'google', priceIn: 0.075, priceOut: 0.30 },
-  { id: 'google/palm-2-chat-bison', name: 'PaLM 2 Chat', category: 'google', priceIn: 0.50, priceOut: 0.50 },
-  
-  // Meta Llama Models
-  { id: 'meta-llama/llama-3.1-405b-instruct', name: 'Llama 3.1 405B', category: 'meta', description: 'Largest open model', priceIn: 2.70, priceOut: 2.70 },
-  { id: 'meta-llama/llama-3.1-70b-instruct', name: 'Llama 3.1 70B', category: 'meta', priceIn: 0.52, priceOut: 0.75 },
-  { id: 'meta-llama/llama-3.1-8b-instruct', name: 'Llama 3.1 8B', category: 'meta', priceIn: 0.055, priceOut: 0.055 },
-  { id: 'meta-llama/llama-3-70b-instruct', name: 'Llama 3 70B', category: 'meta', priceIn: 0.52, priceOut: 0.75 },
-  { id: 'meta-llama/llama-3-8b-instruct', name: 'Llama 3 8B', category: 'meta', priceIn: 0.055, priceOut: 0.055 },
-  { id: 'meta-llama/codellama-70b-instruct', name: 'CodeLlama 70B', category: 'meta', description: 'Code specialist', priceIn: 0.52, priceOut: 0.75 },
-  
-  // Mistral Models
-  { id: 'mistralai/mistral-large', name: 'Mistral Large', category: 'mistral', priceIn: 2.00, priceOut: 6.00 },
-  { id: 'mistralai/mistral-medium', name: 'Mistral Medium', category: 'mistral', priceIn: 2.70, priceOut: 8.10 },
-  { id: 'mistralai/mistral-small', name: 'Mistral Small', category: 'mistral', priceIn: 0.20, priceOut: 0.60 },
-  { id: 'mistralai/mixtral-8x7b-instruct', name: 'Mixtral 8x7B', category: 'mistral', priceIn: 0.24, priceOut: 0.24 },
-  { id: 'mistralai/mixtral-8x22b-instruct', name: 'Mixtral 8x22B', category: 'mistral', priceIn: 0.65, priceOut: 0.65 },
-  { id: 'mistralai/codestral-latest', name: 'Codestral', category: 'mistral', description: 'Code specialist', priceIn: 0.20, priceOut: 0.60 },
-  
-  // xAI Models
-  { id: 'x-ai/grok-3-fast-code-1', name: 'Grok Fast Code 1', category: 'xai', description: 'Code-optimized model', priceIn: 3.00, priceOut: 15.00 },
-  { id: 'x-ai/grok-3', name: 'Grok 3', category: 'xai', description: 'Latest Grok model', priceIn: 3.00, priceOut: 15.00 },
-  { id: 'x-ai/grok-2', name: 'Grok 2', category: 'xai', priceIn: 2.00, priceOut: 10.00 },
-  { id: 'x-ai/grok-beta', name: 'Grok Beta', category: 'xai', priceIn: 5.00, priceOut: 15.00 },
-  
-  // Other Models
-  { id: 'cohere/command-r-plus', name: 'Command R+', category: 'other', priceIn: 2.50, priceOut: 10.00 },
-  { id: 'cohere/command-r', name: 'Command R', category: 'other', priceIn: 0.15, priceOut: 0.60 },
-  { id: 'databricks/dbrx-instruct', name: 'DBRX Instruct', category: 'other', priceIn: 0.75, priceOut: 0.75 },
-  { id: 'deepseek/deepseek-coder', name: 'DeepSeek Coder', category: 'other', priceIn: 0.14, priceOut: 0.28 },
-  { id: 'deepseek/deepseek-chat', name: 'DeepSeek Chat', category: 'other', priceIn: 0.14, priceOut: 0.28 },
-  { id: 'perplexity/llama-3.1-sonar-large-128k-online', name: 'Perplexity Sonar Large', category: 'other', description: 'With web search', priceIn: 1.00, priceOut: 1.00 },
-  { id: 'perplexity/llama-3.1-sonar-small-128k-online', name: 'Perplexity Sonar Small', category: 'other', description: 'With web search', priceIn: 0.20, priceOut: 0.20 },
-  { id: 'qwen/qwen-2-72b-instruct', name: 'Qwen 2 72B', category: 'other', priceIn: 0.34, priceOut: 0.39 },
-  { id: '01-ai/yi-large', name: 'Yi Large', category: 'other', priceIn: 3.00, priceOut: 3.00 },
-];
-
-const CATEGORY_LABELS: Record<string, string> = {
-  recommended: '⭐ TOP CHOICES',
-  anthropic: '🟣 Anthropic',
-  openai: '🟢 OpenAI',
-  google: '🔵 Google',
-  meta: '🟠 Meta Llama',
-  mistral: '🟡 Mistral AI',
-  xai: '⚫ xAI',
-  other: '⚪ Other Models',
-};
-
 const SettingsPage = () => {
   const dispatch = useAppDispatch();
   const settings = useAppSelector((state) => state.settings);
@@ -165,6 +76,54 @@ const SettingsPage = () => {
   const [editModePort, setEditModePort] = useState(false);
   const [editModeApiBaseUrl, setEditModeApiBaseUrl] = useState(false);
   const [editModeWebsocketUrl, setEditModeWebsocketUrl] = useState(false);
+  
+  // Dynamic AI models state
+  interface DynamicAIModel {
+    id: string;
+    name: string;
+    provider: string;
+    description?: string;
+    priceIn?: number | null;
+    priceOut?: number | null;
+    context_length?: number;
+  }
+  interface AIProvider {
+    id: string;
+    name: string;
+  }
+  const [dynamicModels, setDynamicModels] = useState<DynamicAIModel[]>([]);
+  const [availableProviders, setAvailableProviders] = useState<AIProvider[]>([
+    { id: 'all', name: 'All Providers' },
+  ]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [modelsSource, setModelsSource] = useState<'static' | 'openrouter'>('static');
+  
+  // Load AI models when API key changes or provider filter changes
+  useEffect(() => {
+    const loadModels = async () => {
+      setModelsLoading(true);
+      try {
+        const response = await apiClient.getAIModels(
+          settings.aiProvider.openRouterApiKey || undefined,
+          settings.aiProvider.openRouterProvider || 'all'
+        );
+        if (response.success) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const data = response as any;
+          setDynamicModels(data.models || []);
+          setAvailableProviders(data.providers || [{ id: 'all', name: 'All Providers' }]);
+          setModelsSource(data.source === 'openrouter' ? 'openrouter' : 'static');
+        }
+      } catch (error) {
+        console.error('Failed to load AI models:', error);
+        // Keep existing models on error
+      } finally {
+        setModelsLoading(false);
+      }
+    };
+    
+    loadModels();
+  }, [settings.aiProvider.openRouterApiKey, settings.aiProvider.openRouterProvider]);
 
   const handleSaveSettings = () => {
     dispatch(saveSettings());
@@ -588,24 +547,59 @@ const SettingsPage = () => {
                 />
               </Grid>
 
-              <Grid size={12}>
+              {/* Provider Dropdown */}
+              <Grid size={{ xs: 12, md: 4 }}>
+                <FormControl fullWidth disabled={!settings.aiProvider.openRouterEnabled}>
+                  <InputLabel>Provider Filter</InputLabel>
+                  <Select
+                    value={settings.aiProvider.openRouterProvider || 'all'}
+                    label="Provider Filter"
+                    onChange={(e) => dispatch(setAIProviderSettings({ openRouterProvider: e.target.value }))}
+                  >
+                    {availableProviders.map((provider) => (
+                      <MenuItem key={provider.id} value={provider.id}>
+                        {provider.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              {/* Dynamic Model Selection */}
+              <Grid size={{ xs: 12, md: 8 }}>
                 <Autocomplete
-                  options={AI_MODELS}
-                  groupBy={(option) => option.category}
+                  options={dynamicModels}
+                  groupBy={(option) => option.provider}
                   getOptionLabel={(option) => option.name}
-                  value={AI_MODELS.find((m) => m.id === settings.aiProvider.openRouterModel) || AI_MODELS[0]}
+                  value={dynamicModels.find((m) => m.id === settings.aiProvider.openRouterModel) || null}
                   onChange={(_, newValue) => {
                     if (newValue) {
                       dispatch(setAIProviderSettings({ openRouterModel: newValue.id }));
                     }
                   }}
                   disabled={!settings.aiProvider.openRouterEnabled}
+                  loading={modelsLoading}
                   renderInput={(params) => (
                     <TextField
                       {...params}
                       label="AI Model"
                       placeholder="Search models..."
-                      helperText="Search by name or scroll through categories"
+                      helperText={
+                        modelsLoading 
+                          ? "Loading models..." 
+                          : modelsSource === 'openrouter' 
+                            ? `${dynamicModels.length} models loaded from OpenRouter API` 
+                            : "Using default model list (add API key for full list)"
+                      }
+                      InputProps={{
+                        ...params.InputProps,
+                        endAdornment: (
+                          <>
+                            {modelsLoading ? <CircularProgress color="inherit" size={20} /> : null}
+                            {params.InputProps.endAdornment}
+                          </>
+                        ),
+                      }}
                     />
                   )}
                   renderGroup={(params) => (
@@ -614,7 +608,7 @@ const SettingsPage = () => {
                         component="div"
                         sx={{
                           bgcolor: 'background.paper',
-                          color: params.group === 'recommended' ? 'warning.main' : 'text.secondary',
+                          color: 'primary.main',
                           fontWeight: 700,
                           fontSize: '0.75rem',
                           letterSpacing: '0.1em',
@@ -623,7 +617,7 @@ const SettingsPage = () => {
                           borderColor: 'divider',
                         }}
                       >
-                        {CATEGORY_LABELS[params.group] || params.group}
+                        {availableProviders.find(p => p.id === params.group)?.name || params.group}
                       </ListSubheader>
                       <ul style={{ padding: 0 }}>{params.children}</ul>
                     </li>
@@ -636,11 +630,8 @@ const SettingsPage = () => {
                           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                               <Typography variant="body1">{option.name}</Typography>
-                              {option.category === 'recommended' && (
-                                <StarIcon sx={{ fontSize: 16, color: 'warning.main' }} />
-                              )}
                             </Box>
-                            {(option.priceIn !== undefined && option.priceOut !== undefined) && (
+                            {(option.priceIn !== undefined && option.priceIn !== null && option.priceOut !== undefined && option.priceOut !== null) && (
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                 <AttachMoneyIcon sx={{ fontSize: 14, color: 'success.main' }} />
                                 <Typography variant="caption" sx={{ color: 'success.main', fontFamily: 'monospace', fontWeight: 600 }}>
@@ -658,9 +649,9 @@ const SettingsPage = () => {
                             <Typography variant="caption" color="text.disabled" sx={{ fontFamily: 'monospace' }}>
                               {option.id}
                             </Typography>
-                            {(option.priceIn !== undefined && option.priceOut !== undefined) && (
+                            {option.context_length && (
                               <Typography variant="caption" color="text.disabled" sx={{ fontFamily: 'monospace', fontSize: '0.65rem' }}>
-                                per 1M tokens (in/out)
+                                {(option.context_length / 1000).toFixed(0)}K context
                               </Typography>
                             )}
                           </Box>

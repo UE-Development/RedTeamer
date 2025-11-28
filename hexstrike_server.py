@@ -17446,6 +17446,513 @@ _available_agents = {
     },
 }
 
+# ============================================================================
+# AI-POWERED AGENT RESPONSE SYSTEM
+# Integrates with OpenRouter API for intelligent responses (supports multiple AI models)
+# OpenRouter provides unified access to OpenAI, Anthropic, Google, Meta, and more
+# Falls back to template responses if no API keys are configured
+# ============================================================================
+
+class AIAgentEngine:
+    """AI-powered agent response engine using OpenRouter API (unified access to multiple AI providers)"""
+    
+    def __init__(self):
+        # OpenRouter API (unified access to multiple AI models)
+        self.openrouter_api_key = os.environ.get("OPENROUTER_API_KEY", "")
+        self.openrouter_model = os.environ.get("OPENROUTER_MODEL", "anthropic/claude-3.5-sonnet")
+        
+        # Legacy support for direct API keys (fallback)
+        self.openai_api_key = os.environ.get("OPENAI_API_KEY", "")
+        self.anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        
+        self.ai_enabled = bool(self.openrouter_api_key or self.openai_api_key or self.anthropic_api_key)
+        
+        if self.ai_enabled:
+            logger.info("🤖 AI Agent Engine initialized with external AI provider")
+            if self.openrouter_api_key:
+                logger.info(f"  ├─ OpenRouter API: Available (model: {self.openrouter_model})")
+            if self.openai_api_key:
+                logger.info("  ├─ OpenAI API: Available (legacy)")
+            if self.anthropic_api_key:
+                logger.info("  └─ Anthropic API: Available (legacy)")
+        else:
+            logger.info("🤖 AI Agent Engine initialized (template mode - set OPENAI_API_KEY or ANTHROPIC_API_KEY for AI responses)")
+    
+    def get_system_prompt(self, agent: dict) -> str:
+        """Generate system prompt for agent based on its type and capabilities"""
+        agent_type = agent.get("type", "")
+        agent_name = agent.get("name", "Security Agent")
+        capabilities = agent.get("capabilities", [])
+        description = agent.get("description", "")
+        
+        base_prompt = f"""You are {agent_name}, an AI-powered cybersecurity agent in the HexStrike AI platform.
+
+Your role: {description}
+
+Your specialized capabilities:
+{chr(10).join([f'- {cap}' for cap in capabilities])}
+
+Guidelines:
+1. Provide actionable security insights and recommendations
+2. Be concise but thorough in your analysis
+3. Include relevant security tools when applicable (Nmap, Nuclei, Burp Suite, SQLMap, etc.)
+4. Format responses with emojis and clear structure for readability
+5. Always consider security best practices and ethical hacking principles
+6. When asked to scan or test, describe the methodology you would use
+7. Reference relevant CVEs, OWASP Top 10, or MITRE ATT&CK when applicable
+8. Suggest next steps for security assessments
+
+You have access to 162+ security tools including:
+- Network: Nmap, Rustscan, Masscan, Amass, Subfinder
+- Web: Nuclei, Nikto, SQLMap, Burp Suite, Gobuster, FFuf
+- Cloud: Prowler, Trivy, Scout Suite, kube-hunter
+- Binary: Ghidra, Radare2, Binary Ninja
+- OSINT: TheHarvester, Shodan, Maltego
+- Password: John, Hashcat, Hydra"""
+        
+        # Add agent-specific context
+        agent_contexts = {
+            "bugbounty": """
+Focus on bug bounty hunting methodology:
+- Reconnaissance and asset discovery
+- Subdomain enumeration and takeover checks
+- Web application vulnerability testing
+- API security testing
+- Authentication and authorization flaws
+- Business logic vulnerabilities
+Always prioritize by impact and bounty potential (P1-Critical, P2-High, P3-Medium).""",
+            
+            "ctf": """
+Focus on CTF challenge solving:
+- Cryptography challenges (RSA, AES, hashing)
+- Reverse engineering binaries
+- Forensics and steganography
+- Web exploitation
+- Binary exploitation (buffer overflows, ROP chains)
+- Privilege escalation techniques
+Provide step-by-step methodology for solving challenges.""",
+            
+            "cve_intelligence": """
+Focus on CVE and vulnerability intelligence:
+- CVE lookup and analysis
+- Exploit availability assessment
+- CVSS score interpretation
+- Affected software versions
+- Patch availability
+- Threat actor exploitation
+Provide actionable intelligence for vulnerability management.""",
+            
+            "exploit_generator": """
+Focus on exploit development:
+- Proof of Concept (PoC) generation
+- Payload crafting for various platforms
+- Evasion techniques
+- Shellcode development
+- Exploitation methodology
+Always emphasize responsible disclosure and ethical use.""",
+            
+            "web_security": """
+Focus on web application security:
+- OWASP Top 10 vulnerabilities
+- XSS (Reflected, Stored, DOM-based)
+- SQL Injection (Error-based, Blind, Time-based)
+- CSRF and SSRF attacks
+- Authentication/Authorization flaws
+- API security testing
+Provide specific payloads and testing methodology.""",
+            
+            "auth_testing": """
+Focus on authentication and authorization testing:
+- Authentication bypass techniques
+- Session management flaws
+- Password policy testing
+- Multi-factor authentication bypass
+- OAuth/OIDC vulnerabilities
+- Privilege escalation
+Include specific test cases and expected behaviors.""",
+            
+            "cloud_security": """
+Focus on cloud security assessment:
+- AWS/Azure/GCP misconfigurations
+- IAM policy analysis
+- S3 bucket/blob storage security
+- Container security
+- Kubernetes security
+- Serverless security
+Use cloud-native security tools and frameworks.""",
+            
+            "osint": """
+Focus on Open Source Intelligence gathering:
+- Domain and IP reconnaissance
+- Social media intelligence
+- Email harvesting
+- Employee enumeration
+- Technology fingerprinting
+- Credential leaks
+Emphasize passive reconnaissance techniques.""",
+            
+            "network_recon": """
+Focus on network reconnaissance:
+- Port scanning and service detection
+- Network topology mapping
+- Firewall evasion techniques
+- Traffic analysis
+- Vulnerability scanning
+- Service enumeration
+Provide comprehensive network assessment methodology.""",
+            
+            "report_generator": """
+Focus on security report generation:
+- Executive summaries
+- Technical findings documentation
+- Risk ratings and prioritization
+- Remediation recommendations
+- Evidence and proof of concept
+- Compliance mapping (PCI-DSS, HIPAA, etc.)
+Structure reports for both technical and executive audiences."""
+        }
+        
+        if agent_type in agent_contexts:
+            base_prompt += agent_contexts[agent_type]
+        
+        return base_prompt
+    
+    def generate_response(self, agent: dict, message: str, ai_config: dict = None) -> tuple:
+        """Generate AI response for agent message. Returns (response, tools_used, ai_provider)
+        
+        Args:
+            agent: Agent configuration dict
+            message: User message
+            ai_config: Optional AI configuration from frontend (openRouterApiKey, openRouterModel, openRouterEnabled)
+        """
+        
+        # Get AI config from request or fall back to environment variables
+        openrouter_api_key = None
+        openrouter_model = self.openrouter_model
+        
+        if ai_config:
+            # Use frontend-provided configuration
+            if ai_config.get("openRouterEnabled") and ai_config.get("openRouterApiKey"):
+                openrouter_api_key = ai_config.get("openRouterApiKey")
+                openrouter_model = ai_config.get("openRouterModel", self.openrouter_model)
+        else:
+            # Use environment variable configuration
+            openrouter_api_key = self.openrouter_api_key
+        
+        # Try OpenRouter first (preferred method)
+        if openrouter_api_key:
+            try:
+                response, tools = self._call_openrouter(agent, message, openrouter_api_key, openrouter_model)
+                return response, tools, f"openrouter:{openrouter_model}"
+            except Exception as e:
+                logger.warning(f"OpenRouter API failed: {str(e)}, trying fallback providers")
+        
+        # Try legacy providers (fallback)
+        if self.anthropic_api_key:
+            try:
+                response, tools = self._call_anthropic(agent, message)
+                return response, tools, "anthropic"
+            except Exception as e:
+                logger.warning(f"Anthropic API failed: {str(e)}, falling back to templates")
+        
+        if self.openai_api_key:
+            try:
+                response, tools = self._call_openai(agent, message)
+                return response, tools, "openai"
+            except Exception as e:
+                logger.warning(f"OpenAI API failed: {str(e)}, falling back to templates")
+        
+        # Fall back to template responses
+        response = self._generate_template_response(agent, message)
+        tools = self._get_tools_for_message(message, agent)
+        return response, tools, "template"
+    
+    def _call_openrouter(self, agent: dict, message: str, api_key: str, model: str) -> tuple:
+        """Call OpenRouter API for response generation (unified access to multiple AI providers)"""
+        import requests as req
+        
+        system_prompt = self.get_system_prompt(agent)
+        
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "HTTP-Referer": "https://hexstrike.ai",
+            "X-Title": "HexStrike AI Security Platform",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": message}
+            ],
+            "temperature": 0.7,
+            "max_tokens": 2000
+        }
+        
+        response = req.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=60
+        )
+        response.raise_for_status()
+        
+        result = response.json()
+        content = result["choices"][0]["message"]["content"]
+        
+        # Extract tools mentioned in response
+        tools = self._extract_tools_from_response(content)
+        
+        logger.info(f"OpenRouter response generated using model: {model}")
+        return content, tools
+    
+    def _call_openai(self, agent: dict, message: str) -> tuple:
+        """Call OpenAI API for response generation"""
+        import requests as req
+        
+        system_prompt = self.get_system_prompt(agent)
+        
+        headers = {
+            "Authorization": f"Bearer {self.openai_api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "model": os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": message}
+            ],
+            "temperature": 0.7,
+            "max_tokens": 2000
+        }
+        
+        response = req.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=60
+        )
+        response.raise_for_status()
+        
+        result = response.json()
+        content = result["choices"][0]["message"]["content"]
+        
+        # Extract tools mentioned in response
+        tools = self._extract_tools_from_response(content)
+        
+        return content, tools
+    
+    def _call_anthropic(self, agent: dict, message: str) -> tuple:
+        """Call Anthropic API for response generation"""
+        import requests as req
+        
+        system_prompt = self.get_system_prompt(agent)
+        
+        headers = {
+            "x-api-key": self.anthropic_api_key,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "model": os.environ.get("ANTHROPIC_MODEL", "claude-3-haiku-20240307"),
+            "max_tokens": 2000,
+            "system": system_prompt,
+            "messages": [
+                {"role": "user", "content": message}
+            ]
+        }
+        
+        response = req.post(
+            "https://api.anthropic.com/v1/messages",
+            headers=headers,
+            json=payload,
+            timeout=60
+        )
+        response.raise_for_status()
+        
+        result = response.json()
+        content = result["content"][0]["text"]
+        
+        # Extract tools mentioned in response
+        tools = self._extract_tools_from_response(content)
+        
+        return content, tools
+    
+    def _extract_tools_from_response(self, content: str) -> list:
+        """Extract security tools mentioned in AI response"""
+        content_lower = content.lower()
+        tools = []
+        
+        # Map of tool keywords to tool names
+        tool_keywords = {
+            "nmap": "Nmap",
+            "rustscan": "Rustscan",
+            "masscan": "Masscan",
+            "nuclei": "Nuclei",
+            "nikto": "Nikto",
+            "sqlmap": "SQLMap",
+            "burp": "Burp Suite",
+            "gobuster": "Gobuster",
+            "ffuf": "FFuf",
+            "amass": "Amass",
+            "subfinder": "Subfinder",
+            "hydra": "Hydra",
+            "john": "John the Ripper",
+            "hashcat": "Hashcat",
+            "metasploit": "Metasploit",
+            "prowler": "Prowler",
+            "trivy": "Trivy",
+            "ghidra": "Ghidra",
+            "radare": "Radare2",
+            "shodan": "Shodan",
+            "theharvester": "theHarvester",
+            "wpscan": "WPScan",
+            "dalfox": "Dalfox",
+            "xsstrike": "XSStrike",
+            "dirbuster": "DirBuster",
+            "dirb": "Dirb",
+            "feroxbuster": "Feroxbuster",
+            "wfuzz": "Wfuzz",
+            "netexec": "NetExec",
+            "crackmapexec": "CrackMapExec",
+            "bloodhound": "BloodHound",
+            "mimikatz": "Mimikatz",
+            "responder": "Responder",
+            "impacket": "Impacket"
+        }
+        
+        for keyword, tool_name in tool_keywords.items():
+            if keyword in content_lower and tool_name not in tools:
+                tools.append(tool_name)
+        
+        return tools[:10] if tools else ["Analysis Engine"]
+    
+    def _generate_template_response(self, agent: dict, message: str) -> str:
+        """Generate template-based response (fallback when AI is not available)"""
+        agent_type = agent.get("type", "")
+        message_lower = message.lower()
+        
+        # General scan/test commands
+        if any(word in message_lower for word in ["scan", "test", "analyze", "check"]):
+            return f"""🎯 {agent['name']} - Security Assessment Initiated
+
+I'm processing your request: "{message[:100]}..."
+
+📊 Analysis Overview:
+├─ Target identified and validated
+├─ Security assessment modules activated
+├─ Running comprehensive checks
+└─ Gathering intelligence data
+
+🔍 Preliminary Findings:
+• Target reconnaissance in progress
+• Service detection running
+• Vulnerability assessment queued
+
+💡 This is a live response from the HexStrike backend.
+   The agent is actively processing your request.
+
+⚙️ Note: For AI-powered responses, configure OPENAI_API_KEY or ANTHROPIC_API_KEY environment variables.
+
+Use the tools and intelligence endpoints for detailed analysis."""
+        
+        # CVE/Vulnerability related queries
+        if any(word in message_lower for word in ["cve", "vulnerability", "vuln", "exploit"]):
+            return f"""🔍 {agent['name']} - CVE Intelligence Analysis
+
+Processing vulnerability query: "{message[:100]}..."
+
+📋 Intelligence Report:
+├─ Querying CVE databases (NVD, MITRE, ExploitDB)
+├─ Analyzing vulnerability patterns
+├─ Correlating with threat intelligence feeds
+└─ Generating impact assessment
+
+🎯 Recommended Actions:
+1. Review affected components
+2. Check for available patches
+3. Implement compensating controls
+4. Monitor for exploitation attempts
+
+⚙️ Note: For AI-powered responses, configure OPENAI_API_KEY or ANTHROPIC_API_KEY.
+
+This response is from the HexStrike Intelligence Engine.
+Use /api/intelligence endpoints for detailed CVE data."""
+        
+        # Report generation
+        if any(word in message_lower for word in ["report", "summary", "document"]):
+            return f"""📊 {agent['name']} - Report Generation
+
+Preparing security documentation...
+
+✅ Report Sections:
+├─ Executive Summary
+├─ Technical Findings
+├─ Risk Assessment Matrix
+├─ Remediation Roadmap
+└─ Appendices & Evidence
+
+📁 Available Formats:
+• PDF - Executive presentation
+• HTML - Interactive dashboard
+• JSON - API integration
+• Markdown - Documentation
+
+⚙️ Note: For AI-powered responses, configure OPENAI_API_KEY or ANTHROPIC_API_KEY.
+
+Report generation in progress. Use the /api/reports endpoints for download."""
+        
+        # Default response
+        return f"""✨ {agent['name']} - Ready
+
+Received: "{message[:100]}..."
+
+I'm an AI-powered security agent with these capabilities:
+{chr(10).join([f'  • {cap}' for cap in agent.get('capabilities', [])])}
+
+🔄 Processing your request...
+
+The HexStrike backend is connected and operational.
+I can help with:
+• Security assessments and scans
+• Vulnerability analysis
+• CVE intelligence gathering
+• Report generation
+• Tool orchestration
+
+⚙️ **Enable AI Responses:**
+Set OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable for intelligent AI-powered responses.
+
+Provide more details about your target or task for focused analysis."""
+    
+    def _get_tools_for_message(self, message: str, agent: dict) -> list:
+        """Get relevant tools based on the message content"""
+        message_lower = message.lower()
+        tools = []
+        
+        if any(word in message_lower for word in ["scan", "port"]):
+            tools.extend(["Nmap", "Rustscan"])
+        if any(word in message_lower for word in ["web", "http", "url"]):
+            tools.extend(["Nuclei", "Nikto"])
+        if any(word in message_lower for word in ["subdomain", "domain"]):
+            tools.extend(["Amass", "Subfinder"])
+        if any(word in message_lower for word in ["sql", "injection"]):
+            tools.append("SQLMap")
+        if any(word in message_lower for word in ["xss", "cross-site"]):
+            tools.extend(["Dalfox", "XSSHunter"])
+        if any(word in message_lower for word in ["cve", "vulnerability"]):
+            tools.extend(["NVD API", "CVE Search"])
+        if any(word in message_lower for word in ["directory", "fuzz", "bruteforce"]):
+            tools.extend(["Gobuster", "FFuf"])
+        
+        return list(set(tools)) if tools else ["Analysis Engine"]
+
+# Initialize AI Agent Engine
+_ai_agent_engine = AIAgentEngine()
+
 @app.route("/api/agents/list", methods=["GET"])
 def list_agents():
     """List all available AI agents"""
@@ -17534,10 +18041,19 @@ def deactivate_agent(agent_id: str):
 
 @app.route("/api/agents/<agent_id>/message", methods=["POST"])
 def send_agent_message(agent_id: str):
-    """Send a message to an agent and get a response"""
+    """Send a message to an agent and get an AI-powered response
+    
+    Request body can include:
+    - message: The user message (required)
+    - aiConfig: Optional AI configuration from frontend settings
+        - openRouterApiKey: OpenRouter API key
+        - openRouterModel: Model to use (e.g., 'anthropic/claude-3.5-sonnet')
+        - openRouterEnabled: Whether OpenRouter is enabled
+    """
     try:
         data = request.get_json()
         message = data.get("message", "")
+        ai_config = data.get("aiConfig")  # Optional AI config from frontend
         
         if not message:
             return jsonify({"error": "Message is required"}), 400
@@ -17550,10 +18066,13 @@ def send_agent_message(agent_id: str):
         
         # Log message metadata only (not content for security)
         logger.info(f"Agent {agent_id} ({agent['name']}) received message (length: {len(message)})")
+        if ai_config:
+            logger.info(f"  Using frontend AI config: enabled={ai_config.get('openRouterEnabled')}, model={ai_config.get('openRouterModel')}")
         
-        # Process the message based on agent type and content
-        response_content = _process_agent_message(agent, message)
-        tools_used = _get_tools_for_message(message, agent)
+        # Use AI-powered agent engine for response generation
+        response_content, tools_used, ai_provider = _ai_agent_engine.generate_response(agent, message, ai_config)
+        
+        logger.info(f"Agent {agent_id} responded using {ai_provider} provider")
         
         return jsonify({
             "success": True,
@@ -17562,6 +18081,7 @@ def send_agent_message(agent_id: str):
             "message": message,
             "response": response_content,
             "tools_used": tools_used,
+            "ai_provider": ai_provider,
             "status": "completed",
             "timestamp": datetime.now().isoformat()
         })
@@ -17569,116 +18089,861 @@ def send_agent_message(agent_id: str):
         logger.error(f"Error processing agent message: {str(e)}")
         return jsonify({"error": f"Server error: {str(e)}"}), 500
 
-def _process_agent_message(agent: dict, message: str) -> str:
-    """Process a message and generate an appropriate response based on agent type"""
-    agent_type = agent.get("type", "")
-    message_lower = message.lower()
+@app.route("/api/agents/ai-config", methods=["GET"])
+def get_ai_config():
+    """Get AI agent configuration status"""
+    try:
+        return jsonify({
+            "success": True,
+            "ai_enabled": _ai_agent_engine.ai_enabled,
+            "openrouter_configured": bool(_ai_agent_engine.openrouter_api_key),
+            "openrouter_model": _ai_agent_engine.openrouter_model,
+            "openai_configured": bool(_ai_agent_engine.openai_api_key),
+            "anthropic_configured": bool(_ai_agent_engine.anthropic_api_key),
+            "instructions": {
+                "openrouter": "Configure OpenRouter API key in Settings > OpenRouter AI Configuration, or set OPENROUTER_API_KEY environment variable",
+                "openai": "Set OPENAI_API_KEY environment variable for legacy OpenAI direct access",
+                "anthropic": "Set ANTHROPIC_API_KEY environment variable for legacy Anthropic direct access",
+                "frontend_config": "The frontend can pass AI configuration with each message request via the aiConfig parameter"
+            },
+            "supported_features": {
+                "openrouter_models": [
+                    "anthropic/claude-3.5-sonnet",
+                    "openai/gpt-4o",
+                    "openai/gpt-4o-mini",
+                    "google/gemini-pro-1.5",
+                    "meta-llama/llama-3.1-70b-instruct",
+                    "x-ai/grok-3-fast-code-1"
+                ],
+                "accepts_frontend_config": True
+            },
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error getting AI config: {str(e)}")
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+@app.route("/api/agents/models", methods=["GET"])
+def get_ai_models():
+    """Fetch available AI models from OpenRouter API
     
-    # General scan/test commands
-    if any(word in message_lower for word in ["scan", "test", "analyze", "check"]):
-        return f"""🎯 {agent['name']} - Security Assessment Initiated
+    Query parameters:
+    - api_key: OpenRouter API key (optional, uses env var if not provided)
+    - provider: Filter by provider (optional, e.g., 'anthropic', 'openai', 'google')
+    """
+    try:
+        api_key = request.args.get('api_key') or os.environ.get("OPENROUTER_API_KEY", "")
+        provider_filter = request.args.get('provider', 'all')
+        
+        if not api_key:
+            # Return a static fallback list if no API key
+            return jsonify({
+                "success": True,
+                "source": "static",
+                "message": "No API key provided. Showing default models.",
+                "providers": [
+                    {"id": "all", "name": "All Providers"},
+                    {"id": "anthropic", "name": "Anthropic"},
+                    {"id": "openai", "name": "OpenAI"},
+                    {"id": "google", "name": "Google"},
+                    {"id": "meta-llama", "name": "Meta Llama"},
+                    {"id": "mistralai", "name": "Mistral AI"},
+                    {"id": "x-ai", "name": "xAI"},
+                    {"id": "cohere", "name": "Cohere"},
+                    {"id": "deepseek", "name": "DeepSeek"},
+                ],
+                "models": _get_static_models(provider_filter),
+                "timestamp": datetime.now().isoformat()
+            })
+        
+        # Fetch models from OpenRouter API
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "HTTP-Referer": "https://hexstrike.ai",
+            "X-Title": "HexStrike AI Security Platform"
+        }
+        
+        response = requests.get(
+            "https://openrouter.ai/api/v1/models",
+            headers=headers,
+            timeout=30
+        )
+        response.raise_for_status()
+        
+        data = response.json()
+        models = data.get("data", [])
+        
+        # Extract unique providers from models
+        providers_set = set()
+        for model in models:
+            model_id = model.get("id", "")
+            if "/" in model_id:
+                provider = model_id.split("/")[0]
+                providers_set.add(provider)
+        
+        providers = [{"id": "all", "name": "All Providers"}]
+        provider_names = {
+            "anthropic": "Anthropic",
+            "openai": "OpenAI",
+            "google": "Google",
+            "meta-llama": "Meta Llama",
+            "mistralai": "Mistral AI",
+            "x-ai": "xAI",
+            "cohere": "Cohere",
+            "deepseek": "DeepSeek",
+            "perplexity": "Perplexity",
+            "qwen": "Qwen",
+            "01-ai": "Yi",
+            "databricks": "Databricks",
+            "microsoft": "Microsoft",
+            "nous": "Nous Research",
+            "nousresearch": "Nous Research",
+        }
+        
+        for provider_id in sorted(providers_set):
+            providers.append({
+                "id": provider_id,
+                "name": provider_names.get(provider_id, provider_id.replace("-", " ").title())
+            })
+        
+        # Transform and filter models
+        transformed_models = []
+        for model in models:
+            model_id = model.get("id", "")
+            model_provider = model_id.split("/")[0] if "/" in model_id else "other"
+            
+            # Apply provider filter
+            if provider_filter != "all" and model_provider != provider_filter:
+                continue
+            
+            pricing = model.get("pricing", {})
+            prompt_price = float(pricing.get("prompt", 0)) * 1000000 if pricing.get("prompt") else None
+            completion_price = float(pricing.get("completion", 0)) * 1000000 if pricing.get("completion") else None
+            
+            transformed_models.append({
+                "id": model_id,
+                "name": model.get("name", model_id),
+                "provider": model_provider,
+                "description": model.get("description", ""),
+                "context_length": model.get("context_length"),
+                "priceIn": prompt_price,
+                "priceOut": completion_price,
+                "top_provider": model.get("top_provider", {}).get("is_moderated", False),
+            })
+        
+        # Sort models: by provider, then by name
+        transformed_models.sort(key=lambda x: (x["provider"], x["name"]))
+        
+        logger.info(f"Fetched {len(transformed_models)} models from OpenRouter API (filter: {provider_filter})")
+        
+        return jsonify({
+            "success": True,
+            "source": "openrouter",
+            "providers": providers,
+            "models": transformed_models,
+            "total_count": len(models),
+            "filtered_count": len(transformed_models),
+            "timestamp": datetime.now().isoformat()
+        })
+        
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"Failed to fetch models from OpenRouter: {str(e)}")
+        # Return static fallback on API error
+        return jsonify({
+            "success": True,
+            "source": "static",
+            "message": f"Could not fetch from OpenRouter API: {str(e)}. Showing default models.",
+            "providers": [
+                {"id": "all", "name": "All Providers"},
+                {"id": "anthropic", "name": "Anthropic"},
+                {"id": "openai", "name": "OpenAI"},
+                {"id": "google", "name": "Google"},
+                {"id": "meta-llama", "name": "Meta Llama"},
+                {"id": "mistralai", "name": "Mistral AI"},
+                {"id": "x-ai", "name": "xAI"},
+            ],
+            "models": _get_static_models(provider_filter),
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error getting AI models: {str(e)}")
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
 
-I'm processing your request: "{message[:100]}..."
-
-📊 Analysis Overview:
-├─ Target identified and validated
-├─ Security assessment modules activated
-├─ Running comprehensive checks
-└─ Gathering intelligence data
-
-🔍 Preliminary Findings:
-• Target reconnaissance in progress
-• Service detection running
-• Vulnerability assessment queued
-
-💡 This is a live response from the HexStrike backend.
-   The agent is actively processing your request.
-
-Use the tools and intelligence endpoints for detailed analysis."""
-
-    # CVE/Vulnerability related queries
-    if any(word in message_lower for word in ["cve", "vulnerability", "vuln", "exploit"]):
-        return f"""🔍 {agent['name']} - CVE Intelligence Analysis
-
-Processing vulnerability query: "{message[:100]}..."
-
-📋 Intelligence Report:
-├─ Querying CVE databases (NVD, MITRE, ExploitDB)
-├─ Analyzing vulnerability patterns
-├─ Correlating with threat intelligence feeds
-└─ Generating impact assessment
-
-🎯 Recommended Actions:
-1. Review affected components
-2. Check for available patches
-3. Implement compensating controls
-4. Monitor for exploitation attempts
-
-This response is from the HexStrike Intelligence Engine.
-Use /api/intelligence endpoints for detailed CVE data."""
-
-    # Report generation
-    if any(word in message_lower for word in ["report", "summary", "document"]):
-        return f"""📊 {agent['name']} - Report Generation
-
-Preparing security documentation...
-
-✅ Report Sections:
-├─ Executive Summary
-├─ Technical Findings
-├─ Risk Assessment Matrix
-├─ Remediation Roadmap
-└─ Appendices & Evidence
-
-📁 Available Formats:
-• PDF - Executive presentation
-• HTML - Interactive dashboard
-• JSON - API integration
-• Markdown - Documentation
-
-Report generation in progress. Use the /api/reports endpoints for download."""
-
-    # Default response
-    return f"""✨ {agent['name']} - Ready
-
-Received: "{message[:100]}..."
-
-I'm an AI-powered security agent with these capabilities:
-{chr(10).join([f'  • {cap}' for cap in agent.get('capabilities', [])])}
-
-🔄 Processing your request...
-
-The HexStrike backend is connected and operational.
-I can help with:
-• Security assessments and scans
-• Vulnerability analysis
-• CVE intelligence gathering
-• Report generation
-• Tool orchestration
-
-Provide more details about your target or task for focused analysis."""
-
-def _get_tools_for_message(message: str, agent: dict) -> list:
-    """Get relevant tools based on the message content"""
-    message_lower = message.lower()
-    tools = []
+def _get_static_models(provider_filter: str = "all") -> list:
+    """Return static fallback list of popular AI models"""
+    static_models = [
+        # Anthropic
+        {"id": "anthropic/claude-3.5-sonnet", "name": "Claude 3.5 Sonnet", "provider": "anthropic", "description": "Best for security analysis", "priceIn": 3.00, "priceOut": 15.00},
+        {"id": "anthropic/claude-3-opus", "name": "Claude 3 Opus", "provider": "anthropic", "description": "Most capable model", "priceIn": 15.00, "priceOut": 75.00},
+        {"id": "anthropic/claude-3-sonnet", "name": "Claude 3 Sonnet", "provider": "anthropic", "priceIn": 3.00, "priceOut": 15.00},
+        {"id": "anthropic/claude-3-haiku", "name": "Claude 3 Haiku", "provider": "anthropic", "description": "Fast and efficient", "priceIn": 0.25, "priceOut": 1.25},
+        # OpenAI
+        {"id": "openai/gpt-4o", "name": "GPT-4o", "provider": "openai", "description": "Fastest GPT-4 model", "priceIn": 2.50, "priceOut": 10.00},
+        {"id": "openai/gpt-4o-mini", "name": "GPT-4o Mini", "provider": "openai", "description": "Fast and cost-effective", "priceIn": 0.15, "priceOut": 0.60},
+        {"id": "openai/gpt-4-turbo", "name": "GPT-4 Turbo", "provider": "openai", "priceIn": 10.00, "priceOut": 30.00},
+        {"id": "openai/gpt-4", "name": "GPT-4", "provider": "openai", "priceIn": 30.00, "priceOut": 60.00},
+        {"id": "openai/o1-preview", "name": "O1 Preview", "provider": "openai", "description": "Reasoning model", "priceIn": 15.00, "priceOut": 60.00},
+        {"id": "openai/o1-mini", "name": "O1 Mini", "provider": "openai", "description": "Fast reasoning", "priceIn": 3.00, "priceOut": 12.00},
+        # Google
+        {"id": "google/gemini-pro-1.5", "name": "Gemini Pro 1.5", "provider": "google", "description": "Long context window", "priceIn": 1.25, "priceOut": 5.00},
+        {"id": "google/gemini-1.5-flash", "name": "Gemini 1.5 Flash", "provider": "google", "priceIn": 0.075, "priceOut": 0.30},
+        {"id": "google/gemini-pro", "name": "Gemini Pro", "provider": "google", "priceIn": 0.50, "priceOut": 1.50},
+        # Meta Llama
+        {"id": "meta-llama/llama-3.1-405b-instruct", "name": "Llama 3.1 405B", "provider": "meta-llama", "description": "Largest open model", "priceIn": 2.70, "priceOut": 2.70},
+        {"id": "meta-llama/llama-3.1-70b-instruct", "name": "Llama 3.1 70B", "provider": "meta-llama", "priceIn": 0.52, "priceOut": 0.75},
+        {"id": "meta-llama/llama-3.1-8b-instruct", "name": "Llama 3.1 8B", "provider": "meta-llama", "priceIn": 0.055, "priceOut": 0.055},
+        # Mistral
+        {"id": "mistralai/mistral-large", "name": "Mistral Large", "provider": "mistralai", "priceIn": 2.00, "priceOut": 6.00},
+        {"id": "mistralai/mixtral-8x22b-instruct", "name": "Mixtral 8x22B", "provider": "mistralai", "priceIn": 0.65, "priceOut": 0.65},
+        {"id": "mistralai/codestral-latest", "name": "Codestral", "provider": "mistralai", "description": "Code specialist", "priceIn": 0.20, "priceOut": 0.60},
+        # xAI
+        {"id": "x-ai/grok-3", "name": "Grok 3", "provider": "x-ai", "description": "Latest Grok model", "priceIn": 3.00, "priceOut": 15.00},
+        {"id": "x-ai/grok-2", "name": "Grok 2", "provider": "x-ai", "priceIn": 2.00, "priceOut": 10.00},
+        # DeepSeek
+        {"id": "deepseek/deepseek-coder", "name": "DeepSeek Coder", "provider": "deepseek", "priceIn": 0.14, "priceOut": 0.28},
+        {"id": "deepseek/deepseek-chat", "name": "DeepSeek Chat", "provider": "deepseek", "priceIn": 0.14, "priceOut": 0.28},
+    ]
     
-    if any(word in message_lower for word in ["scan", "port"]):
-        tools.extend(["Nmap", "Rustscan"])
-    if any(word in message_lower for word in ["web", "http", "url"]):
-        tools.extend(["Nuclei", "Nikto"])
-    if any(word in message_lower for word in ["subdomain", "domain"]):
-        tools.extend(["Amass", "Subfinder"])
-    if any(word in message_lower for word in ["sql", "injection"]):
-        tools.append("SQLMap")
-    if any(word in message_lower for word in ["xss", "cross-site"]):
-        tools.extend(["Dalfox", "XSSHunter"])
-    if any(word in message_lower for word in ["cve", "vulnerability"]):
-        tools.extend(["NVD API", "CVE Search"])
-    if any(word in message_lower for word in ["directory", "fuzz", "bruteforce"]):
-        tools.extend(["Gobuster", "FFuf"])
+    if provider_filter == "all":
+        return static_models
     
-    return list(set(tools)) if tools else ["Analysis Engine"]
+    return [m for m in static_models if m["provider"] == provider_filter]
+
+# ============================================================================
+# TOOLS, SCANS, VULNERABILITIES & DASHBOARD API ENDPOINTS
+# These endpoints provide real data streams for the frontend when demo mode is off.
+# They replace mock data with live backend state management.
+# ============================================================================
+
+# Thread locks for state modifications
+_tools_lock = threading.Lock()
+_scans_lock = threading.Lock()
+_vulnerabilities_lock = threading.Lock()
+
+# Valid filter values for input validation
+VALID_SCAN_STATUSES = {'queued', 'running', 'completed', 'failed', 'paused'}
+VALID_VULNERABILITY_SEVERITIES = {'critical', 'high', 'medium', 'low', 'info'}
+VALID_VULNERABILITY_STATUSES = {'new', 'confirmed', 'false_positive', 'remediated'}
+VALID_TOOL_CATEGORIES = {'network', 'web', 'binary', 'cloud', 'ctf', 'osint', 'password'}
+
+# Comprehensive security tools database matching frontend's securityTools.ts (162 tools)
+_security_tools = [
+    # Network Reconnaissance & Scanning Tools (25)
+    {"id": "net-1", "name": "Nmap", "category": "network", "version": "7.94", "description": "Advanced port scanning with custom NSE scripts and service detection", "installed": True, "usageCount": 245},
+    {"id": "net-2", "name": "Rustscan", "category": "network", "version": "2.1.1", "description": "Ultra-fast port scanner with intelligent rate limiting", "installed": True, "usageCount": 189},
+    {"id": "net-3", "name": "Masscan", "category": "network", "version": "1.3.2", "description": "High-speed Internet-scale port scanning with banner grabbing", "installed": True, "usageCount": 167},
+    {"id": "net-4", "name": "AutoRecon", "category": "network", "version": "2.0.1", "description": "Comprehensive automated reconnaissance with 35+ parameters", "installed": True, "usageCount": 145},
+    {"id": "net-5", "name": "Amass", "category": "network", "version": "3.23.3", "description": "Advanced subdomain enumeration and OSINT gathering", "installed": True, "usageCount": 234},
+    {"id": "net-6", "name": "Subfinder", "category": "network", "version": "2.6.3", "description": "Fast passive subdomain discovery with multiple sources", "installed": True, "usageCount": 198},
+    {"id": "net-7", "name": "Fierce", "category": "network", "version": "1.5.0", "description": "DNS reconnaissance and zone transfer testing", "installed": True, "usageCount": 87},
+    {"id": "net-8", "name": "DNSEnum", "category": "network", "version": "1.3.1", "description": "DNS information gathering and subdomain brute forcing", "installed": True, "usageCount": 76},
+    {"id": "net-9", "name": "TheHarvester", "category": "network", "version": "4.5.1", "description": "Email and subdomain harvesting from multiple sources", "installed": True, "usageCount": 187},
+    {"id": "net-10", "name": "ARP-Scan", "category": "network", "version": "1.9.7", "description": "Network discovery using ARP requests", "installed": True, "usageCount": 65},
+    {"id": "net-11", "name": "NBTScan", "category": "network", "version": "1.7.2", "description": "NetBIOS name scanning and enumeration", "installed": True, "usageCount": 54},
+    {"id": "net-12", "name": "RPCClient", "category": "network", "version": "4.17", "description": "RPC enumeration and null session testing", "installed": True, "usageCount": 43},
+    {"id": "net-13", "name": "Enum4linux", "category": "network", "version": "0.9.1", "description": "SMB enumeration with user, group, and share discovery", "installed": True, "usageCount": 98},
+    {"id": "net-14", "name": "Enum4linux-ng", "category": "network", "version": "1.1.1", "description": "Advanced SMB enumeration with enhanced logging", "installed": True, "usageCount": 112},
+    {"id": "net-15", "name": "SMBMap", "category": "network", "version": "1.8.5", "description": "SMB share enumeration and exploitation", "installed": True, "usageCount": 134},
+    {"id": "net-16", "name": "Responder", "category": "network", "version": "3.1.3", "description": "LLMNR, NBT-NS and MDNS poisoner for credential harvesting", "installed": True, "usageCount": 89},
+    {"id": "net-17", "name": "NetExec", "category": "network", "version": "1.1.0", "description": "Network service exploitation framework (formerly CrackMapExec)", "installed": True, "usageCount": 156},
+    {"id": "net-18", "name": "DNSRecon", "category": "network", "version": "1.1.4", "description": "DNS enumeration and reconnaissance tool", "installed": True, "usageCount": 78},
+    {"id": "net-19", "name": "Netcat", "category": "network", "version": "1.217", "description": "Networking utility for reading/writing network connections", "installed": True, "usageCount": 234},
+    {"id": "net-20", "name": "Hping3", "category": "network", "version": "3.0", "description": "Network tool for packet crafting and analysis", "installed": True, "usageCount": 67},
+    {"id": "net-21", "name": "Tcpdump", "category": "network", "version": "4.99", "description": "Command-line packet analyzer", "installed": True, "usageCount": 189},
+    {"id": "net-22", "name": "Wireshark", "category": "network", "version": "4.2.0", "description": "Network protocol analyzer with GUI", "installed": True, "usageCount": 245},
+    {"id": "net-23", "name": "Tshark", "category": "network", "version": "4.2.0", "description": "Terminal-based Wireshark", "installed": True, "usageCount": 134},
+    {"id": "net-24", "name": "Netdiscover", "category": "network", "version": "0.10", "description": "Active/passive ARP reconnaissance tool", "installed": True, "usageCount": 87},
+    {"id": "net-25", "name": "Arping", "category": "network", "version": "2.23", "description": "ARP level ping utility", "installed": True, "usageCount": 45},
+    # Web Application Security Tools (40)
+    {"id": "web-1", "name": "Nuclei", "category": "web", "version": "3.1.4", "description": "Fast vulnerability scanner with 4000+ templates", "installed": True, "usageCount": 312},
+    {"id": "web-2", "name": "Gobuster", "category": "web", "version": "3.6", "description": "Directory, file, and DNS enumeration with intelligent wordlists", "installed": True, "usageCount": 278},
+    {"id": "web-3", "name": "FFuf", "category": "web", "version": "2.1.0", "description": "Fast web fuzzer with advanced filtering and parameter discovery", "installed": True, "usageCount": 256},
+    {"id": "web-4", "name": "SQLMap", "category": "web", "version": "1.7.12", "description": "Advanced automatic SQL injection testing with tamper scripts", "installed": True, "usageCount": 145},
+    {"id": "web-5", "name": "Nikto", "category": "web", "version": "2.5.0", "description": "Web server vulnerability scanner with comprehensive checks", "installed": True, "usageCount": 134},
+    {"id": "web-6", "name": "Dirsearch", "category": "web", "version": "0.4.3", "description": "Advanced directory and file discovery with enhanced logging", "installed": True, "usageCount": 187},
+    {"id": "web-7", "name": "Feroxbuster", "category": "web", "version": "2.10.1", "description": "Recursive content discovery with intelligent filtering", "installed": True, "usageCount": 198},
+    {"id": "web-8", "name": "Dirb", "category": "web", "version": "2.22", "description": "Comprehensive web content scanner with recursive scanning", "installed": True, "usageCount": 112},
+    {"id": "web-9", "name": "HTTPx", "category": "web", "version": "1.3.7", "description": "Fast HTTP probing and technology detection", "installed": True, "usageCount": 234},
+    {"id": "web-10", "name": "Katana", "category": "web", "version": "1.0.4", "description": "Next-generation crawling and spidering with JavaScript support", "installed": True, "usageCount": 167},
+    {"id": "web-11", "name": "Hakrawler", "category": "web", "version": "2.1", "description": "Fast web endpoint discovery and crawling", "installed": True, "usageCount": 145},
+    {"id": "web-12", "name": "Gau", "category": "web", "version": "2.2.1", "description": "Get All URLs from multiple sources (Wayback, Common Crawl, etc.)", "installed": True, "usageCount": 178},
+    {"id": "web-13", "name": "Waybackurls", "category": "web", "version": "0.1.0", "description": "Historical URL discovery from Wayback Machine", "installed": True, "usageCount": 156},
+    {"id": "web-14", "name": "WPScan", "category": "web", "version": "3.8.25", "description": "WordPress security scanner with vulnerability database", "installed": True, "usageCount": 123},
+    {"id": "web-15", "name": "Arjun", "category": "web", "version": "2.2.1", "description": "HTTP parameter discovery with intelligent fuzzing", "installed": True, "usageCount": 98},
+    {"id": "web-16", "name": "ParamSpider", "category": "web", "version": "1.1", "description": "Parameter mining from web archives", "installed": True, "usageCount": 87},
+    {"id": "web-17", "name": "X8", "category": "web", "version": "4.2.0", "description": "Hidden parameter discovery with advanced techniques", "installed": True, "usageCount": 76},
+    {"id": "web-18", "name": "Jaeles", "category": "web", "version": "0.17.0", "description": "Advanced vulnerability scanning with custom signatures", "installed": True, "usageCount": 65},
+    {"id": "web-19", "name": "Dalfox", "category": "web", "version": "2.9.1", "description": "Advanced XSS vulnerability scanning with DOM analysis", "installed": True, "usageCount": 134},
+    {"id": "web-20", "name": "Wafw00f", "category": "web", "version": "2.2.0", "description": "Web application firewall fingerprinting", "installed": True, "usageCount": 89},
+    {"id": "web-21", "name": "TestSSL", "category": "web", "version": "3.0.8", "description": "SSL/TLS configuration testing and vulnerability assessment", "installed": True, "usageCount": 112},
+    {"id": "web-22", "name": "SSLScan", "category": "web", "version": "2.1.1", "description": "SSL/TLS cipher suite enumeration", "installed": True, "usageCount": 98},
+    {"id": "web-23", "name": "SSLyze", "category": "web", "version": "5.1.3", "description": "Fast and comprehensive SSL/TLS configuration analyzer", "installed": True, "usageCount": 87},
+    {"id": "web-24", "name": "Whatweb", "category": "web", "version": "0.5.5", "description": "Web technology identification with fingerprinting", "installed": True, "usageCount": 145},
+    {"id": "web-25", "name": "JWT-Tool", "category": "web", "version": "2.2.6", "description": "JSON Web Token testing with algorithm confusion", "installed": True, "usageCount": 76},
+    {"id": "web-26", "name": "Wfuzz", "category": "web", "version": "3.1.0", "description": "Web application fuzzer with advanced payload generation", "installed": True, "usageCount": 134},
+    {"id": "web-27", "name": "Commix", "category": "web", "version": "3.9", "description": "Command injection exploitation tool with automated detection", "installed": True, "usageCount": 67},
+    {"id": "web-28", "name": "NoSQLMap", "category": "web", "version": "0.7", "description": "NoSQL injection testing for MongoDB, CouchDB, etc.", "installed": True, "usageCount": 54},
+    {"id": "web-29", "name": "Tplmap", "category": "web", "version": "0.5", "description": "Server-side template injection exploitation tool", "installed": True, "usageCount": 45},
+    {"id": "web-30", "name": "XSStrike", "category": "web", "version": "3.1.5", "description": "Advanced XSS detection suite", "installed": True, "usageCount": 123},
+    {"id": "web-31", "name": "CORS-Scanner", "category": "web", "version": "1.0", "description": "CORS misconfiguration scanner", "installed": True, "usageCount": 56},
+    {"id": "web-32", "name": "Subzy", "category": "web", "version": "0.1.1", "description": "Subdomain takeover vulnerability checker", "installed": True, "usageCount": 67},
+    {"id": "web-33", "name": "meg", "category": "web", "version": "0.3.0", "description": "Fetch many paths for many hosts", "installed": True, "usageCount": 78},
+    {"id": "web-34", "name": "unfurl", "category": "web", "version": "0.4.3", "description": "Pull out bits of URLs provided on stdin", "installed": True, "usageCount": 45},
+    {"id": "web-35", "name": "qsreplace", "category": "web", "version": "0.0.3", "description": "Query string parameter replacement", "installed": True, "usageCount": 89},
+    {"id": "web-36", "name": "uro", "category": "web", "version": "0.0.5", "description": "URL filtering and deduplication", "installed": True, "usageCount": 67},
+    {"id": "web-37", "name": "anew", "category": "web", "version": "0.1.1", "description": "Append new lines to files efficiently", "installed": True, "usageCount": 98},
+    {"id": "web-38", "name": "Burp Suite", "category": "web", "version": "2024.1", "description": "Web security testing platform", "installed": False, "usageCount": 345},
+    {"id": "web-39", "name": "OWASP ZAP", "category": "web", "version": "2.14.0", "description": "OWASP Zed Attack Proxy for security scanning", "installed": True, "usageCount": 234},
+    {"id": "web-40", "name": "Caido", "category": "web", "version": "0.30", "description": "Modern web security testing toolkit", "installed": False, "usageCount": 56},
+    # Binary Analysis & Reverse Engineering Tools (25)
+    {"id": "bin-1", "name": "Ghidra", "category": "binary", "version": "10.4", "description": "NSA's software reverse engineering suite with headless analysis", "installed": True, "usageCount": 89},
+    {"id": "bin-2", "name": "Radare2", "category": "binary", "version": "5.8.8", "description": "Advanced reverse engineering framework with comprehensive analysis", "installed": True, "usageCount": 76},
+    {"id": "bin-3", "name": "GDB", "category": "binary", "version": "13.2", "description": "GNU Debugger with Python scripting and exploit development support", "installed": True, "usageCount": 112},
+    {"id": "bin-4", "name": "GDB-PEDA", "category": "binary", "version": "1.2", "description": "Python Exploit Development Assistance for GDB", "installed": True, "usageCount": 67},
+    {"id": "bin-5", "name": "GDB-GEF", "category": "binary", "version": "2023.10", "description": "GDB Enhanced Features for exploit development", "installed": True, "usageCount": 78},
+    {"id": "bin-6", "name": "IDA Free", "category": "binary", "version": "8.3", "description": "Interactive disassembler with advanced analysis capabilities", "installed": False, "usageCount": 145},
+    {"id": "bin-7", "name": "Binary Ninja", "category": "binary", "version": "4.0", "description": "Commercial reverse engineering platform", "installed": False, "usageCount": 56},
+    {"id": "bin-8", "name": "Binwalk", "category": "binary", "version": "2.3.4", "description": "Firmware analysis and extraction tool with recursive extraction", "installed": True, "usageCount": 98},
+    {"id": "bin-9", "name": "ROPgadget", "category": "binary", "version": "6.8", "description": "ROP/JOP gadget finder with advanced search capabilities", "installed": True, "usageCount": 54},
+    {"id": "bin-10", "name": "Ropper", "category": "binary", "version": "1.13.8", "description": "ROP gadget finder and exploit development tool", "installed": True, "usageCount": 45},
+    {"id": "bin-11", "name": "One-Gadget", "category": "binary", "version": "1.8.0", "description": "Find one-shot RCE gadgets in libc", "installed": True, "usageCount": 67},
+    {"id": "bin-12", "name": "Checksec", "category": "binary", "version": "2.6.0", "description": "Binary security property checker with comprehensive analysis", "installed": True, "usageCount": 134},
+    {"id": "bin-13", "name": "Strings", "category": "binary", "version": "2.41", "description": "Extract printable strings from binaries with filtering", "installed": True, "usageCount": 234},
+    {"id": "bin-14", "name": "Objdump", "category": "binary", "version": "2.41", "description": "Display object file information with Intel syntax", "installed": True, "usageCount": 178},
+    {"id": "bin-15", "name": "Readelf", "category": "binary", "version": "2.41", "description": "ELF file analyzer with detailed header information", "installed": True, "usageCount": 156},
+    {"id": "bin-16", "name": "XXD", "category": "binary", "version": "1.10", "description": "Hex dump utility with advanced formatting", "installed": True, "usageCount": 89},
+    {"id": "bin-17", "name": "Hexdump", "category": "binary", "version": "2.39", "description": "Hex viewer and editor with customizable output", "installed": True, "usageCount": 67},
+    {"id": "bin-18", "name": "Pwntools", "category": "binary", "version": "4.11.1", "description": "CTF framework and exploit development library", "installed": True, "usageCount": 189},
+    {"id": "bin-19", "name": "Angr", "category": "binary", "version": "9.2.77", "description": "Binary analysis platform with symbolic execution", "installed": True, "usageCount": 78},
+    {"id": "bin-20", "name": "Libc-Database", "category": "binary", "version": "1.0", "description": "Libc identification and offset lookup tool", "installed": True, "usageCount": 56},
+    {"id": "bin-21", "name": "Pwninit", "category": "binary", "version": "3.3.1", "description": "Automate binary exploitation setup", "installed": True, "usageCount": 45},
+    {"id": "bin-22", "name": "MSFVenom", "category": "binary", "version": "6.3.52", "description": "Metasploit payload generator with advanced encoding", "installed": True, "usageCount": 167},
+    {"id": "bin-23", "name": "UPX", "category": "binary", "version": "4.2.1", "description": "Executable packer/unpacker for binary analysis", "installed": True, "usageCount": 78},
+    {"id": "bin-24", "name": "Capstone", "category": "binary", "version": "5.0.1", "description": "Disassembly framework", "installed": True, "usageCount": 89},
+    {"id": "bin-25", "name": "Keystone", "category": "binary", "version": "0.9.2", "description": "Assembler framework", "installed": True, "usageCount": 67},
+    # Cloud & Container Security Tools (20)
+    {"id": "cloud-1", "name": "Prowler", "category": "cloud", "version": "3.12.1", "description": "AWS/Azure/GCP security assessment with compliance checks", "installed": True, "usageCount": 67},
+    {"id": "cloud-2", "name": "Trivy", "category": "cloud", "version": "0.48.3", "description": "Comprehensive vulnerability scanner for containers and IaC", "installed": True, "usageCount": 98},
+    {"id": "cloud-3", "name": "Kube-Hunter", "category": "cloud", "version": "0.6.8", "description": "Kubernetes penetration testing with active/passive modes", "installed": True, "usageCount": 54},
+    {"id": "cloud-4", "name": "Scout Suite", "category": "cloud", "version": "5.13.0", "description": "Multi-cloud security auditing for AWS, Azure, GCP, Alibaba Cloud", "installed": True, "usageCount": 56},
+    {"id": "cloud-5", "name": "CloudMapper", "category": "cloud", "version": "2.10.0", "description": "AWS network visualization and security analysis", "installed": True, "usageCount": 45},
+    {"id": "cloud-6", "name": "Pacu", "category": "cloud", "version": "1.5.3", "description": "AWS exploitation framework with comprehensive modules", "installed": True, "usageCount": 67},
+    {"id": "cloud-7", "name": "Clair", "category": "cloud", "version": "4.7.2", "description": "Container vulnerability analysis with detailed CVE reporting", "installed": True, "usageCount": 78},
+    {"id": "cloud-8", "name": "Kube-Bench", "category": "cloud", "version": "0.7.0", "description": "CIS Kubernetes benchmark checker with remediation", "installed": True, "usageCount": 89},
+    {"id": "cloud-9", "name": "Docker Bench Security", "category": "cloud", "version": "1.6.0", "description": "Docker security assessment following CIS benchmarks", "installed": True, "usageCount": 67},
+    {"id": "cloud-10", "name": "Falco", "category": "cloud", "version": "0.37.0", "description": "Runtime security monitoring for containers and Kubernetes", "installed": True, "usageCount": 56},
+    {"id": "cloud-11", "name": "Checkov", "category": "cloud", "version": "3.1.67", "description": "Infrastructure as code security scanning", "installed": True, "usageCount": 123},
+    {"id": "cloud-12", "name": "Terrascan", "category": "cloud", "version": "1.18.11", "description": "Infrastructure security scanner with policy-as-code", "installed": True, "usageCount": 98},
+    {"id": "cloud-13", "name": "CloudSploit", "category": "cloud", "version": "3.0.0", "description": "Cloud security scanning and monitoring", "installed": True, "usageCount": 45},
+    {"id": "cloud-14", "name": "AWS CLI", "category": "cloud", "version": "2.15.0", "description": "Amazon Web Services command line with security operations", "installed": True, "usageCount": 234},
+    {"id": "cloud-15", "name": "Azure CLI", "category": "cloud", "version": "2.55.0", "description": "Microsoft Azure command line with security assessment", "installed": True, "usageCount": 156},
+    {"id": "cloud-16", "name": "GCloud", "category": "cloud", "version": "456.0.0", "description": "Google Cloud Platform command line with security tools", "installed": True, "usageCount": 134},
+    {"id": "cloud-17", "name": "Kubectl", "category": "cloud", "version": "1.28.4", "description": "Kubernetes command line with security context analysis", "installed": True, "usageCount": 198},
+    {"id": "cloud-18", "name": "Helm", "category": "cloud", "version": "3.13.3", "description": "Kubernetes package manager with security scanning", "installed": True, "usageCount": 145},
+    {"id": "cloud-19", "name": "OPA", "category": "cloud", "version": "0.60.0", "description": "Policy engine for cloud-native security and compliance", "installed": True, "usageCount": 67},
+    {"id": "cloud-20", "name": "Grype", "category": "cloud", "version": "0.74.0", "description": "Container and filesystem vulnerability scanner", "installed": True, "usageCount": 89},
+    # CTF & Forensics Tools (20)
+    {"id": "ctf-1", "name": "Volatility3", "category": "ctf", "version": "2.5.0", "description": "Next-generation memory forensics with enhanced analysis", "installed": True, "usageCount": 43},
+    {"id": "ctf-2", "name": "John the Ripper", "category": "ctf", "version": "1.9.0", "description": "Password cracker with custom rules and advanced modes", "installed": True, "usageCount": 128},
+    {"id": "ctf-3", "name": "Hashcat", "category": "ctf", "version": "6.2.6", "description": "GPU-accelerated password recovery with 300+ hash types", "installed": True, "usageCount": 156},
+    {"id": "ctf-4", "name": "Volatility", "category": "ctf", "version": "2.6.1", "description": "Advanced memory forensics framework with comprehensive plugins", "installed": True, "usageCount": 67},
+    {"id": "ctf-5", "name": "Foremost", "category": "ctf", "version": "1.5.7", "description": "File carving and data recovery with signature-based detection", "installed": True, "usageCount": 56},
+    {"id": "ctf-6", "name": "PhotoRec", "category": "ctf", "version": "7.2", "description": "File recovery software with advanced carving capabilities", "installed": True, "usageCount": 45},
+    {"id": "ctf-7", "name": "TestDisk", "category": "ctf", "version": "7.2", "description": "Disk partition recovery and repair tool", "installed": True, "usageCount": 34},
+    {"id": "ctf-8", "name": "Steghide", "category": "ctf", "version": "0.5.1", "description": "Steganography detection and extraction with password support", "installed": True, "usageCount": 78},
+    {"id": "ctf-9", "name": "Stegsolve", "category": "ctf", "version": "1.3", "description": "Steganography analysis tool with visual inspection", "installed": True, "usageCount": 89},
+    {"id": "ctf-10", "name": "Zsteg", "category": "ctf", "version": "0.2.12", "description": "PNG/BMP steganography detection tool", "installed": True, "usageCount": 67},
+    {"id": "ctf-11", "name": "Outguess", "category": "ctf", "version": "0.2.2", "description": "Universal steganographic tool for JPEG images", "installed": True, "usageCount": 45},
+    {"id": "ctf-12", "name": "ExifTool", "category": "ctf", "version": "12.70", "description": "Metadata reader/writer for various file formats", "installed": True, "usageCount": 156},
+    {"id": "ctf-13", "name": "Scalpel", "category": "ctf", "version": "2.0", "description": "File carving tool with configurable headers and footers", "installed": True, "usageCount": 34},
+    {"id": "ctf-14", "name": "Bulk Extractor", "category": "ctf", "version": "2.0.6", "description": "Digital forensics tool for extracting features", "installed": True, "usageCount": 45},
+    {"id": "ctf-15", "name": "Autopsy", "category": "ctf", "version": "4.21.0", "description": "Digital forensics platform with timeline analysis", "installed": False, "usageCount": 89},
+    {"id": "ctf-16", "name": "Sleuth Kit", "category": "ctf", "version": "4.12.1", "description": "Collection of command-line digital forensics tools", "installed": True, "usageCount": 67},
+    {"id": "ctf-17", "name": "CyberChef", "category": "ctf", "version": "10.5.0", "description": "Web-based analysis toolkit for encoding and encryption", "installed": True, "usageCount": 234},
+    {"id": "ctf-18", "name": "Hash-Identifier", "category": "ctf", "version": "1.2", "description": "Hash type identification with confidence scoring", "installed": True, "usageCount": 98},
+    {"id": "ctf-19", "name": "RSATool", "category": "ctf", "version": "1.0", "description": "RSA key analysis and common attack implementations", "installed": True, "usageCount": 56},
+    {"id": "ctf-20", "name": "RsaCtfTool", "category": "ctf", "version": "4.0", "description": "RSA attack tool for CTF challenges", "installed": True, "usageCount": 78},
+    # OSINT Tools (20)
+    {"id": "osint-1", "name": "TheHarvester", "category": "osint", "version": "4.5.1", "description": "Email and subdomain harvesting from multiple sources", "installed": True, "usageCount": 187},
+    {"id": "osint-2", "name": "Sherlock", "category": "osint", "version": "0.14.3", "description": "Username investigation across 400+ social networks", "installed": True, "usageCount": 92},
+    {"id": "osint-3", "name": "SpiderFoot", "category": "osint", "version": "4.0", "description": "OSINT automation with 200+ modules", "installed": False, "usageCount": 34},
+    {"id": "osint-4", "name": "Maltego", "category": "osint", "version": "4.6", "description": "Link analysis and data mining for OSINT investigations", "installed": False, "usageCount": 67},
+    {"id": "osint-5", "name": "Recon-ng", "category": "osint", "version": "5.1.2", "description": "Web reconnaissance framework with modular architecture", "installed": True, "usageCount": 123},
+    {"id": "osint-6", "name": "Social-Analyzer", "category": "osint", "version": "1.0.0", "description": "Social media analysis and OSINT gathering", "installed": True, "usageCount": 45},
+    {"id": "osint-7", "name": "Aquatone", "category": "osint", "version": "1.7.0", "description": "Visual inspection of websites across hosts", "installed": True, "usageCount": 89},
+    {"id": "osint-8", "name": "Subjack", "category": "osint", "version": "0.0.1", "description": "Subdomain takeover vulnerability checker", "installed": True, "usageCount": 67},
+    {"id": "osint-9", "name": "Shodan CLI", "category": "osint", "version": "1.29.1", "description": "Internet-connected device search with advanced filtering", "installed": True, "usageCount": 156},
+    {"id": "osint-10", "name": "Censys", "category": "osint", "version": "2.2.8", "description": "Internet asset discovery with certificate analysis", "installed": True, "usageCount": 98},
+    {"id": "osint-11", "name": "TruffleHog", "category": "osint", "version": "3.63.1", "description": "Git repository secret scanning with entropy analysis", "installed": True, "usageCount": 134},
+    {"id": "osint-12", "name": "GitLeaks", "category": "osint", "version": "8.18.0", "description": "Secret detection in git repositories", "installed": True, "usageCount": 112},
+    {"id": "osint-13", "name": "Holehe", "category": "osint", "version": "1.61", "description": "Email OSINT tool checking account existence", "installed": True, "usageCount": 78},
+    {"id": "osint-14", "name": "Maigret", "category": "osint", "version": "0.4.4", "description": "Collect a dossier on a person by username", "installed": True, "usageCount": 56},
+    {"id": "osint-15", "name": "Phoneinfoga", "category": "osint", "version": "2.11.0", "description": "Phone number information gathering", "installed": True, "usageCount": 67},
+    {"id": "osint-16", "name": "h8mail", "category": "osint", "version": "2.5.6", "description": "Email OSINT and breach hunting", "installed": True, "usageCount": 45},
+    {"id": "osint-17", "name": "Photon", "category": "osint", "version": "1.3.2", "description": "Fast crawler designed for OSINT", "installed": True, "usageCount": 89},
+    {"id": "osint-18", "name": "Sublist3r", "category": "osint", "version": "1.0", "description": "Subdomain enumeration tool", "installed": True, "usageCount": 156},
+    {"id": "osint-19", "name": "DNSDumpster", "category": "osint", "version": "1.0", "description": "DNS reconnaissance and research", "installed": True, "usageCount": 98},
+    {"id": "osint-20", "name": "Whois", "category": "osint", "version": "5.5.18", "description": "Domain registration information lookup", "installed": True, "usageCount": 234},
+    # Password & Authentication Tools (12)
+    {"id": "pwd-1", "name": "Hydra", "category": "password", "version": "9.5", "description": "Network login cracker supporting 50+ protocols", "installed": True, "usageCount": 167},
+    {"id": "pwd-2", "name": "Medusa", "category": "password", "version": "2.2", "description": "Speedy, parallel, modular login brute-forcer", "installed": True, "usageCount": 89},
+    {"id": "pwd-3", "name": "Patator", "category": "password", "version": "0.9", "description": "Multi-purpose brute-forcer with advanced modules", "installed": True, "usageCount": 67},
+    {"id": "pwd-4", "name": "Evil-WinRM", "category": "password", "version": "3.5", "description": "Windows Remote Management shell with PowerShell integration", "installed": True, "usageCount": 98},
+    {"id": "pwd-5", "name": "HashID", "category": "password", "version": "3.1.4", "description": "Advanced hash algorithm identifier with confidence scoring", "installed": True, "usageCount": 112},
+    {"id": "pwd-6", "name": "Ophcrack", "category": "password", "version": "3.8.0", "description": "Windows password cracker using rainbow tables", "installed": False, "usageCount": 45},
+    {"id": "pwd-7", "name": "Mimikatz", "category": "password", "version": "2.2.0", "description": "Windows credential extraction tool", "installed": True, "usageCount": 156},
+    {"id": "pwd-8", "name": "LaZagne", "category": "password", "version": "2.4.5", "description": "Credentials recovery project", "installed": True, "usageCount": 89},
+    {"id": "pwd-9", "name": "Responder", "category": "password", "version": "3.1.3", "description": "LLMNR/NBT-NS/mDNS poisoner and credential capture", "installed": True, "usageCount": 134},
+    {"id": "pwd-10", "name": "Impacket", "category": "password", "version": "0.11.0", "description": "Python network protocol toolkit", "installed": True, "usageCount": 178},
+    {"id": "pwd-11", "name": "Kerbrute", "category": "password", "version": "1.0.3", "description": "Kerberos brute-force utility", "installed": True, "usageCount": 67},
+    {"id": "pwd-12", "name": "Crackmapexec", "category": "password", "version": "5.4.0", "description": "Swiss army knife for pentesting networks", "installed": True, "usageCount": 145},
+]
+
+# Active scans storage
+_active_scans = {}
+_scan_counter = 0
+
+# Discovered vulnerabilities storage
+_vulnerabilities = []
+_vuln_counter = 0
+
+@app.route("/api/tools/list", methods=["GET"])
+def list_tools():
+    """List all security tools"""
+    try:
+        category = request.args.get("category", None)
+        installed_only = request.args.get("installed", "false").lower() == "true"
+        
+        with _tools_lock:
+            filtered_tools = _security_tools.copy()
+        
+        if category and category != "all":
+            filtered_tools = [t for t in filtered_tools if t["category"] == category]
+        
+        if installed_only:
+            filtered_tools = [t for t in filtered_tools if t.get("installed", False)]
+        
+        logger.info(f"📋 Listed {len(filtered_tools)} tools")
+        return jsonify({
+            "success": True,
+            "data": filtered_tools,
+            "count": len(filtered_tools),
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error listing tools: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/tools/<tool_id>", methods=["GET"])
+def get_tool(tool_id: str):
+    """Get details for a specific tool"""
+    try:
+        with _tools_lock:
+            tool = next((t for t in _security_tools if t["id"] == tool_id), None)
+        
+        if not tool:
+            return jsonify({"success": False, "error": "Tool not found"}), 404
+        
+        return jsonify({
+            "success": True,
+            "data": tool,
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error getting tool {tool_id}: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/tools/<tool_id>/execute", methods=["POST"])
+def execute_tool(tool_id: str):
+    """Execute a security tool"""
+    try:
+        data = request.get_json() or {}
+        target = data.get("target", "")
+        parameters = data.get("parameters", {})
+        
+        with _tools_lock:
+            tool = next((t for t in _security_tools if t["id"] == tool_id), None)
+        
+        if not tool:
+            return jsonify({"success": False, "error": "Tool not found"}), 404
+        
+        # Update usage count
+        with _tools_lock:
+            for t in _security_tools:
+                if t["id"] == tool_id:
+                    t["usageCount"] = t.get("usageCount", 0) + 1
+                    break
+        
+        execution_id = f"exec-{datetime.now().timestamp()}"
+        
+        logger.info(f"🔧 Executing tool {tool['name']} on target: {target}")
+        return jsonify({
+            "success": True,
+            "executionId": execution_id,
+            "tool": tool["name"],
+            "target": target,
+            "status": "started",
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error executing tool {tool_id}: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/scans/list", methods=["GET"])
+def list_scans():
+    """List all scans"""
+    try:
+        status_filter = request.args.get("status", None)
+        
+        # Validate status filter if provided
+        if status_filter and status_filter not in VALID_SCAN_STATUSES:
+            return jsonify({
+                "success": False,
+                "error": f"Invalid status filter. Must be one of: {', '.join(VALID_SCAN_STATUSES)}"
+            }), 400
+        
+        with _scans_lock:
+            scans_list = list(_active_scans.values())
+        
+        if status_filter:
+            scans_list = [s for s in scans_list if s.get("status") == status_filter]
+        
+        # Sort by start time (most recent first)
+        scans_list.sort(key=lambda x: x.get("startTime", ""), reverse=True)
+        
+        logger.info(f"📊 Listed {len(scans_list)} scans")
+        return jsonify({
+            "success": True,
+            "data": scans_list,
+            "count": len(scans_list),
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error listing scans: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/scans/create", methods=["POST"])
+def create_scan():
+    """Create a new security scan"""
+    global _scan_counter
+    try:
+        data = request.get_json() or {}
+        target = data.get("target", "")
+        scan_type = data.get("type", "standard")
+        selected_tools = data.get("selectedTools", [])
+        
+        if not target:
+            return jsonify({"success": False, "error": "Target is required"}), 400
+        
+        _scan_counter += 1
+        scan_id = f"scan-{_scan_counter}-{int(datetime.now().timestamp())}"
+        
+        new_scan = {
+            "id": scan_id,
+            "target": target,
+            "type": scan_type.capitalize(),
+            "status": "running",
+            "progress": 0,
+            "currentPhase": "Phase 1: Reconnaissance",
+            "phases": [
+                {"name": "Phase 1: Reconnaissance", "status": "running", "progress": 0},
+                {"name": "Phase 2: Scanning", "status": "pending", "progress": 0},
+                {"name": "Phase 3: Vulnerability Testing", "status": "pending", "progress": 0},
+            ],
+            "startTime": datetime.now().isoformat(),
+            "duration": 0,
+            "vulnerabilitiesFound": 0,
+            "toolsUsed": selected_tools if selected_tools else ["Nmap", "Nuclei", "Gobuster"],
+        }
+        
+        with _scans_lock:
+            _active_scans[scan_id] = new_scan
+        
+        logger.info(f"🎯 Created new scan {scan_id} for target: {target}")
+        return jsonify({
+            "success": True,
+            "data": new_scan,
+            "message": f"Scan started for {target}",
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error creating scan: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/scans/<scan_id>", methods=["GET"])
+def get_scan(scan_id: str):
+    """Get details for a specific scan"""
+    try:
+        with _scans_lock:
+            scan = _active_scans.get(scan_id)
+        
+        if not scan:
+            return jsonify({"success": False, "error": "Scan not found"}), 404
+        
+        return jsonify({
+            "success": True,
+            "data": scan,
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error getting scan {scan_id}: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/scans/<scan_id>", methods=["DELETE"])
+def delete_scan(scan_id: str):
+    """Delete a scan"""
+    try:
+        with _scans_lock:
+            if scan_id not in _active_scans:
+                return jsonify({"success": False, "error": "Scan not found"}), 404
+            del _active_scans[scan_id]
+        
+        logger.info(f"🗑️ Deleted scan {scan_id}")
+        return jsonify({
+            "success": True,
+            "message": f"Scan {scan_id} deleted",
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error deleting scan {scan_id}: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/scans/<scan_id>/progress", methods=["GET"])
+def get_scan_progress(scan_id: str):
+    """Get progress for a specific scan"""
+    try:
+        with _scans_lock:
+            scan = _active_scans.get(scan_id)
+        
+        if not scan:
+            return jsonify({"success": False, "error": "Scan not found"}), 404
+        
+        return jsonify({
+            "success": True,
+            "data": {
+                "progress": scan.get("progress", 0),
+                "currentPhase": scan.get("currentPhase", ""),
+                "status": scan.get("status", "unknown"),
+                "phases": scan.get("phases", []),
+            },
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error getting scan progress {scan_id}: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/scans/<scan_id>/results", methods=["GET"])
+def get_scan_results(scan_id: str):
+    """Get results for a completed scan"""
+    try:
+        with _scans_lock:
+            scan = _active_scans.get(scan_id)
+        
+        if not scan:
+            return jsonify({"success": False, "error": "Scan not found"}), 404
+        
+        # Return scan results
+        return jsonify({
+            "success": True,
+            "data": {
+                "target": scan.get("target", ""),
+                "status": scan.get("status", "unknown"),
+                "vulnerabilitiesFound": scan.get("vulnerabilitiesFound", 0),
+                "toolsUsed": scan.get("toolsUsed", []),
+                "duration": scan.get("duration", 0),
+            },
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error getting scan results {scan_id}: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/vulnerabilities/list", methods=["GET"])
+def list_vulnerabilities():
+    """List all discovered vulnerabilities"""
+    try:
+        severity_filter = request.args.get("severity", None)
+        status_filter = request.args.get("status", None)
+        
+        # Validate severity filter if provided
+        if severity_filter and severity_filter not in VALID_VULNERABILITY_SEVERITIES:
+            return jsonify({
+                "success": False,
+                "error": f"Invalid severity filter. Must be one of: {', '.join(VALID_VULNERABILITY_SEVERITIES)}"
+            }), 400
+        
+        # Validate status filter if provided
+        if status_filter and status_filter not in VALID_VULNERABILITY_STATUSES:
+            return jsonify({
+                "success": False,
+                "error": f"Invalid status filter. Must be one of: {', '.join(VALID_VULNERABILITY_STATUSES)}"
+            }), 400
+        
+        with _vulnerabilities_lock:
+            vulns_list = _vulnerabilities.copy()
+        
+        if severity_filter:
+            vulns_list = [v for v in vulns_list if v.get("severity") == severity_filter]
+        
+        if status_filter:
+            vulns_list = [v for v in vulns_list if v.get("status") == status_filter]
+        
+        # Sort by severity (critical first) and then by discovery time
+        severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+        vulns_list.sort(key=lambda x: (severity_order.get(x.get("severity", "info"), 5), x.get("discoveredAt", "")))
+        
+        logger.info(f"🔍 Listed {len(vulns_list)} vulnerabilities")
+        return jsonify({
+            "success": True,
+            "data": vulns_list,
+            "count": len(vulns_list),
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error listing vulnerabilities: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/vulnerabilities/<vuln_id>", methods=["GET"])
+def get_vulnerability(vuln_id: str):
+    """Get details for a specific vulnerability"""
+    try:
+        with _vulnerabilities_lock:
+            vuln = next((v for v in _vulnerabilities if v["id"] == vuln_id), None)
+        
+        if not vuln:
+            return jsonify({"success": False, "error": "Vulnerability not found"}), 404
+        
+        return jsonify({
+            "success": True,
+            "data": vuln,
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error getting vulnerability {vuln_id}: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/vulnerabilities/<vuln_id>", methods=["PUT"])
+def update_vulnerability(vuln_id: str):
+    """Update a vulnerability"""
+    try:
+        data = request.get_json() or {}
+        
+        with _vulnerabilities_lock:
+            vuln = next((v for v in _vulnerabilities if v["id"] == vuln_id), None)
+            if not vuln:
+                return jsonify({"success": False, "error": "Vulnerability not found"}), 404
+            
+            # Update allowed fields
+            allowed_fields = ["status", "remediation", "notes"]
+            for field in allowed_fields:
+                if field in data:
+                    vuln[field] = data[field]
+        
+        logger.info(f"📝 Updated vulnerability {vuln_id}")
+        return jsonify({
+            "success": True,
+            "data": vuln,
+            "message": "Vulnerability updated",
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error updating vulnerability {vuln_id}: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/vulnerabilities/<vuln_id>/remediation", methods=["POST"])
+def get_remediation(vuln_id: str):
+    """Get remediation guidance for a vulnerability"""
+    try:
+        with _vulnerabilities_lock:
+            vuln = next((v for v in _vulnerabilities if v["id"] == vuln_id), None)
+        
+        if not vuln:
+            return jsonify({"success": False, "error": "Vulnerability not found"}), 404
+        
+        # Generate remediation guidance based on vulnerability type
+        severity = vuln.get("severity", "medium")
+        title = vuln.get("title", "").lower()
+        
+        remediation_steps = []
+        if "sql injection" in title:
+            remediation_steps = [
+                "Use parameterized queries or prepared statements",
+                "Implement input validation and sanitization",
+                "Apply the principle of least privilege for database accounts",
+                "Enable web application firewall (WAF) rules"
+            ]
+        elif "xss" in title or "cross-site scripting" in title:
+            remediation_steps = [
+                "Implement output encoding/escaping",
+                "Use Content Security Policy (CSP) headers",
+                "Validate and sanitize all user inputs",
+                "Use HTTPOnly and Secure flags for cookies"
+            ]
+        elif "ssrf" in title:
+            remediation_steps = [
+                "Validate and sanitize all URLs",
+                "Use allowlists for permitted destinations",
+                "Disable unnecessary URL schemes",
+                "Implement network segmentation"
+            ]
+        else:
+            remediation_steps = [
+                "Review and patch affected components",
+                "Implement security best practices",
+                "Monitor for exploitation attempts",
+                "Consider implementing additional security controls"
+            ]
+        
+        return jsonify({
+            "success": True,
+            "data": {
+                "vulnerabilityId": vuln_id,
+                "severity": severity,
+                "remediationSteps": remediation_steps,
+                "priority": "high" if severity in ["critical", "high"] else "medium",
+            },
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error getting remediation for {vuln_id}: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/dashboard/metrics", methods=["GET"])
+def get_dashboard_metrics():
+    """Get dashboard metrics for the overview page"""
+    try:
+        # Calculate real metrics from current state
+        with _scans_lock:
+            active_scans = len([s for s in _active_scans.values() if s.get("status") == "running"])
+            total_scans = len(_active_scans)
+        
+        with _vulnerabilities_lock:
+            total_vulns = len(_vulnerabilities)
+        
+        with _agents_lock:
+            online_agents = len([a for a in _available_agents.values() if a.get("status") == "active"])
+        
+        with _tools_lock:
+            tools_used = sum(t.get("usageCount", 0) for t in _security_tools)
+        
+        metrics = {
+            "activeScans": active_scans,
+            "totalScans": total_scans,
+            "toolsUsed": tools_used,
+            "vulnerabilitiesFound": total_vulns,
+            "projectsActive": 1,  # Placeholder - would need project storage
+            "agentsOnline": online_agents,
+        }
+        
+        logger.info(f"📊 Dashboard metrics: {active_scans} active scans, {total_vulns} vulns, {online_agents} agents online")
+        return jsonify({
+            "success": True,
+            "data": metrics,
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error getting dashboard metrics: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 # ============================================================================
 # SETTINGS & CONFIGURATION API ENDPOINTS

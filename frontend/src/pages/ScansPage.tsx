@@ -1,9 +1,10 @@
 /**
  * Scans Page - Real-time Scan Monitoring
  * Live monitoring and management of security scans
+ * Supports both demo mode (mock data) and real backend data
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -33,9 +34,11 @@ import ErrorIcon from '@mui/icons-material/Error';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import AddIcon from '@mui/icons-material/Add';
 import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
+import InfoIcon from '@mui/icons-material/Info';
 import { ScanCreationWizard, ScanExporter, ScanComparisonTool } from '../components/scans';
 import type { ScanData } from '../components/scans';
 import { useAppSelector } from '../store';
+import { apiClient } from '../services/api';
 
 interface Scan {
   id: string;
@@ -56,6 +59,50 @@ interface ScanPhase {
   status: 'pending' | 'running' | 'completed' | 'failed';
   progress: number;
   details?: string;
+}
+
+// Backend scan response interface
+interface BackendScan {
+  id: string;
+  target: string;
+  type: string;
+  status: string;
+  progress: number;
+  currentPhase: string;
+  phases?: ScanPhase[];
+  startTime?: string;
+  duration?: number;
+  vulnerabilitiesFound?: number;
+  toolsUsed?: string[];
+}
+
+// Valid scan statuses - extracted as module constant for reuse
+const VALID_SCAN_STATUSES: Scan['status'][] = ['queued', 'running', 'completed', 'failed', 'paused'];
+
+// Helper to validate scan status
+function validateScanStatus(status: string): Scan['status'] {
+  return VALID_SCAN_STATUSES.includes(status as Scan['status']) ? (status as Scan['status']) : 'queued';
+}
+
+// Helper to transform backend scan to frontend scan
+function transformBackendScan(scan: BackendScan): Scan {
+  return {
+    id: scan.id,
+    target: scan.target,
+    type: scan.type || 'Standard',
+    status: validateScanStatus(scan.status),
+    progress: scan.progress || 0,
+    currentPhase: scan.currentPhase || 'Initializing',
+    phases: scan.phases || [
+      { name: 'Phase 1: Reconnaissance', status: 'pending', progress: 0 },
+      { name: 'Phase 2: Scanning', status: 'pending', progress: 0 },
+      { name: 'Phase 3: Vulnerability Testing', status: 'pending', progress: 0 },
+    ],
+    startTime: scan.startTime ? new Date(scan.startTime) : new Date(),
+    duration: scan.duration || 0,
+    vulnerabilitiesFound: scan.vulnerabilitiesFound || 0,
+    toolsUsed: scan.toolsUsed || [],
+  };
 }
 
 // Mock scan data for demo mode
@@ -121,11 +168,34 @@ const ScansPage = () => {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [exporterOpen, setExporterOpen] = useState(false);
   const [comparisonOpen, setComparisonOpen] = useState(false);
-  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+  const [isLoading, setIsLoading] = useState(false);
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
     open: false,
     message: '',
     severity: 'success',
   });
+
+  // Fetch scans from backend
+  const fetchScansFromBackend = useCallback(async () => {
+    if (mockDataEnabled) return;
+    
+    setIsLoading(true);
+    try {
+      const response = await apiClient.listScans();
+      if (response.success && Array.isArray(response.data)) {
+        const transformedScans = response.data.map((scan: BackendScan) => transformBackendScan(scan));
+        setScans(transformedScans);
+        if (transformedScans.length > 0 && !selectedScan) {
+          setSelectedScan(transformedScans[0]);
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to fetch scans from backend:', error instanceof Error ? error.message : 'Unknown error');
+      setScans([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [mockDataEnabled, selectedScan]);
 
   // Initialize scans based on mock data setting
   useEffect(() => {
@@ -133,10 +203,9 @@ const ScansPage = () => {
       setScans(MOCK_SCANS);
       setSelectedScan(MOCK_SCANS[0]);
     } else {
-      setScans([]);
-      setSelectedScan(null);
+      fetchScansFromBackend();
     }
-  }, [mockDataEnabled]);
+  }, [mockDataEnabled, fetchScansFromBackend]);
 
   // Generate deterministic demo values based on scan ID
   const getDemoValues = (scanId: string) => {
@@ -189,32 +258,68 @@ const ScansPage = () => {
   }, [scans]);
 
   // Handle new scan creation
-  const handleCreateScan = (scanConfig: { target: string; scanType: string; selectedTools: string[] }) => {
-    const newScan: Scan = {
-      id: `scan-${Date.now()}`,
-      target: scanConfig.target,
-      type: scanConfig.scanType.charAt(0).toUpperCase() + scanConfig.scanType.slice(1),
-      status: 'running',
-      progress: 0,
-      currentPhase: 'Phase 1: Reconnaissance',
-      phases: [
-        { name: 'Phase 1: Reconnaissance', status: 'running', progress: 0 },
-        { name: 'Phase 2: Scanning', status: 'pending', progress: 0 },
-        { name: 'Phase 3: Vulnerability Testing', status: 'pending', progress: 0 },
-      ],
-      startTime: new Date(),
-      duration: 0,
-      vulnerabilitiesFound: 0,
-      toolsUsed: scanConfig.selectedTools,
-    };
+  const handleCreateScan = async (scanConfig: { target: string; scanType: string; selectedTools: string[] }) => {
+    if (!mockDataEnabled) {
+      // Create scan via backend API
+      try {
+        const response = await apiClient.createScan({
+          target: scanConfig.target,
+          type: scanConfig.scanType,
+          selectedTools: scanConfig.selectedTools,
+        });
+        
+        if (response.success && response.data) {
+          const newScan = transformBackendScan(response.data);
+          setScans((prev) => [newScan, ...prev]);
+          setSelectedScan(newScan);
+          setSnackbar({
+            open: true,
+            message: `Scan started for ${scanConfig.target}`,
+            severity: 'success',
+          });
+        } else {
+          setSnackbar({
+            open: true,
+            message: 'Failed to create scan',
+            severity: 'error',
+          });
+        }
+      } catch (error) {
+        console.error('Failed to create scan:', error);
+        setSnackbar({
+          open: true,
+          message: `Error: ${error instanceof Error ? error.message : 'Failed to create scan'}`,
+          severity: 'error',
+        });
+      }
+    } else {
+      // Demo mode: create local scan
+      const newScan: Scan = {
+        id: `scan-${Date.now()}`,
+        target: scanConfig.target,
+        type: scanConfig.scanType.charAt(0).toUpperCase() + scanConfig.scanType.slice(1),
+        status: 'running',
+        progress: 0,
+        currentPhase: 'Phase 1: Reconnaissance',
+        phases: [
+          { name: 'Phase 1: Reconnaissance', status: 'running', progress: 0 },
+          { name: 'Phase 2: Scanning', status: 'pending', progress: 0 },
+          { name: 'Phase 3: Vulnerability Testing', status: 'pending', progress: 0 },
+        ],
+        startTime: new Date(),
+        duration: 0,
+        vulnerabilitiesFound: 0,
+        toolsUsed: scanConfig.selectedTools,
+      };
 
-    setScans((prev) => [newScan, ...prev]);
-    setSelectedScan(newScan);
-    setSnackbar({
-      open: true,
-      message: `Scan started for ${scanConfig.target}`,
-      severity: 'success',
-    });
+      setScans((prev) => [newScan, ...prev]);
+      setSelectedScan(newScan);
+      setSnackbar({
+        open: true,
+        message: `Scan started for ${scanConfig.target}`,
+        severity: 'success',
+      });
+    }
   };
 
   // Simulate real-time progress updates
@@ -281,6 +386,21 @@ const ScansPage = () => {
 
   return (
     <Box sx={{ maxWidth: '100%', overflowX: 'hidden' }}>
+      {/* Info banner when demo mode is off */}
+      {!mockDataEnabled && (
+        <Alert 
+          severity="info" 
+          icon={<InfoIcon />}
+          sx={{ mb: 2 }}
+        >
+          {isLoading 
+            ? 'Loading scans from backend...' 
+            : scans.length > 0 
+              ? `Showing ${scans.length} scan(s) from the backend. Create a new scan to start!`
+              : 'No scans found. Create a new scan to get started!'}
+        </Alert>
+      )}
+      
       {/* Header */}
       <Box sx={{ 
         display: 'flex', 

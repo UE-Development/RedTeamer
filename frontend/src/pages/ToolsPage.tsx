@@ -1,9 +1,10 @@
 /**
  * Tools Page - Security Tools Library
  * Browse and manage 150+ security tools
+ * Supports both demo mode (mock data) and real backend data
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -25,12 +26,45 @@ import BuildIcon from '@mui/icons-material/Build';
 import SearchIcon from '@mui/icons-material/Search';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
+import InfoIcon from '@mui/icons-material/Info';
 import { ToolCard, ToolDetailDialog, ToolChainBuilder } from '../components/tools';
 import type { Workflow } from '../components/tools';
 import { useAppSelector } from '../store';
-import type { Tool } from '../types';
+import type { Tool, ToolCategory } from '../types';
 import { getAllTools, getToolCounts } from '../data/securityTools';
+import { apiClient } from '../services/api';
 
+// Interface for backend tool response
+interface BackendTool {
+  id: string;
+  name: string;
+  category: string;
+  version: string;
+  description: string;
+  installed: boolean;
+  usageCount: number;
+}
+
+// Valid tool categories - extracted as module constant for reuse
+const VALID_TOOL_CATEGORIES: ToolCategory[] = ['network', 'web', 'binary', 'cloud', 'ctf', 'osint', 'password'];
+
+// Helper to validate and transform backend tool data
+function transformBackendTool(tool: BackendTool): Tool {
+  const category = VALID_TOOL_CATEGORIES.includes(tool.category as ToolCategory) 
+    ? (tool.category as ToolCategory) 
+    : 'network';
+  
+  return {
+    id: tool.id,
+    name: tool.name,
+    category,
+    version: tool.version,
+    description: tool.description,
+    installed: tool.installed,
+    parameters: [],
+    usageCount: tool.usageCount || 0,
+  };
+}
 
 const ToolsPage = () => {
   const mockDataEnabled = useAppSelector((state) => state.settings.developer.mockDataEnabled);
@@ -41,15 +75,43 @@ const ToolsPage = () => {
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [workflowBuilderOpen, setWorkflowBuilderOpen] = useState(false);
+  const [backendTools, setBackendTools] = useState<Tool[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
     open: false,
     message: '',
     severity: 'info',
   });
 
-  // Get all tools from the comprehensive database - always show full list in demo mode
+  // Fetch tools from backend when demo mode is off
+  const fetchToolsFromBackend = useCallback(async () => {
+    if (mockDataEnabled) return;
+    
+    setIsLoading(true);
+    try {
+      const response = await apiClient.listTools();
+      if (response.success && Array.isArray(response.data)) {
+        const transformedTools = response.data.map((tool: BackendTool) => transformBackendTool(tool));
+        setBackendTools(transformedTools);
+      }
+    } catch (error) {
+      console.warn('Failed to fetch tools from backend:', error instanceof Error ? error.message : 'Unknown error');
+      setBackendTools([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [mockDataEnabled]);
+
+  // Fetch tools when component mounts or mockDataEnabled changes
+  useEffect(() => {
+    if (!mockDataEnabled) {
+      fetchToolsFromBackend();
+    }
+  }, [mockDataEnabled, fetchToolsFromBackend]);
+
+  // Get all tools from the comprehensive database in demo mode, or from backend otherwise
   const allSecurityTools = useMemo(() => getAllTools(), []);
-  const tools = mockDataEnabled ? allSecurityTools : [];
+  const tools = mockDataEnabled ? allSecurityTools : backendTools;
 
   const filteredTools = useMemo(() => {
     return tools.filter((tool) => {
@@ -110,9 +172,9 @@ const ToolsPage = () => {
     setWorkflowBuilderOpen(false);
   };
 
-  // Use dynamic tool counts from the data file
+  // Use dynamic tool counts based on data source
   const dynamicCounts = useMemo(() => getToolCounts(), []);
-  const toolStats = {
+  const toolStats = mockDataEnabled ? {
     total: dynamicCounts.total,
     installed: tools.filter((t) => t.installed).length,
     network: dynamicCounts.network,
@@ -122,10 +184,31 @@ const ToolsPage = () => {
     ctf: dynamicCounts.ctf,
     osint: dynamicCounts.osint,
     password: dynamicCounts.password,
+  } : {
+    total: tools.length,
+    installed: tools.filter((t) => t.installed).length,
+    network: tools.filter((t) => t.category === 'network').length,
+    web: tools.filter((t) => t.category === 'web').length,
+    binary: tools.filter((t) => t.category === 'binary').length,
+    cloud: tools.filter((t) => t.category === 'cloud').length,
+    ctf: tools.filter((t) => t.category === 'ctf').length,
+    osint: tools.filter((t) => t.category === 'osint').length,
+    password: tools.filter((t) => t.category === 'password').length,
   };
 
   return (
     <Box>
+      {/* Info banner when demo mode is off */}
+      {!mockDataEnabled && (
+        <Alert 
+          severity="info" 
+          icon={<InfoIcon />}
+          sx={{ mb: 2 }}
+        >
+          {isLoading ? 'Loading tools from backend...' : `Showing ${tools.length} tools from the backend.`}
+        </Alert>
+      )}
+      
       {/* Header - Mobile optimized */}
       <Box sx={{ 
         display: 'flex', 

@@ -288,6 +288,7 @@ const AgentsPage = () => {
   const dispatch = useAppDispatch();
   const { agents, selectedAgent, messages, loading } = useAppSelector((state) => state.agents);
   const mockDataEnabled = useAppSelector((state) => state.settings.developer.mockDataEnabled);
+  const aiProvider = useAppSelector((state) => state.settings.aiProvider);
   const [activeTab, setActiveTab] = useState(0);
   const [multiAgentChats, setMultiAgentChats] = useState<AgentChat[]>([]);
   const [workflow, setWorkflow] = useState<CollaborationWorkflow | null>(null);
@@ -429,9 +430,15 @@ const AgentsPage = () => {
           dispatch(setLoading(false));
         }, 1500);
       } else {
-        // Use real backend API
+        // Use real backend API with AI configuration from settings
         try {
-          const response = await apiClient.sendAgentMessage(selectedAgent.id, content);
+          const aiConfig = aiProvider.openRouterEnabled ? {
+            openRouterApiKey: aiProvider.openRouterApiKey,
+            openRouterModel: aiProvider.openRouterModel,
+            openRouterEnabled: aiProvider.openRouterEnabled,
+          } : undefined;
+          
+          const response = await apiClient.sendAgentMessage(selectedAgent.id, content, aiConfig);
           const data = extractAgentResponse(response);
           
           const agentResponse: AgentMessage = {
@@ -530,9 +537,15 @@ const AgentsPage = () => {
           );
         }, 1500);
       } else {
-        // Use real API
+        // Use real API with AI configuration from settings
         try {
-          const response = await apiClient.sendAgentMessage(agentId, content);
+          const aiConfig = aiProvider.openRouterEnabled ? {
+            openRouterApiKey: aiProvider.openRouterApiKey,
+            openRouterModel: aiProvider.openRouterModel,
+            openRouterEnabled: aiProvider.openRouterEnabled,
+          } : undefined;
+          
+          const response = await apiClient.sendAgentMessage(agentId, content, aiConfig);
           const data = extractAgentResponse(response);
           
           setMultiAgentChats((innerPrev) =>
