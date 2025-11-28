@@ -18133,9 +18133,18 @@ def get_ai_models():
     - provider_type: Which AI provider to query ('openrouter', 'openai', 'anthropic', 'custom')
     """
     try:
-        api_key = request.args.get('api_key') or os.environ.get("OPENROUTER_API_KEY", "")
         provider_filter = request.args.get('provider', 'all')
         provider_type = request.args.get('provider_type', 'openrouter')
+        
+        # Get API key from request or environment based on provider type
+        api_key = request.args.get('api_key')
+        if not api_key:
+            if provider_type == 'openai':
+                api_key = os.environ.get("OPENAI_API_KEY", "")
+            elif provider_type == 'anthropic':
+                api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+            else:
+                api_key = os.environ.get("OPENROUTER_API_KEY", "")
         
         if not api_key:
             # Return a static fallback list if no API key
@@ -18350,8 +18359,14 @@ def _fetch_openai_models(api_key: str, provider_filter: str) -> tuple:
         })
 
 def _fetch_anthropic_models(api_key: str, provider_filter: str) -> tuple:
-    """Fetch available models from Anthropic - returns static list as Anthropic doesn't have a models API"""
+    """Fetch available models from Anthropic - returns static list as Anthropic doesn't have a models API.
+    
+    Note: provider_filter is accepted for API consistency but not used since all returned models are Anthropic.
+    """
     # Anthropic doesn't have a public models endpoint, so we return a curated list
+    # The api_key validates access but models are static
+    _ = api_key  # API key would be used if Anthropic had a models endpoint
+    _ = provider_filter  # Not used since all models are from Anthropic
     models = [
         {"id": "anthropic/claude-sonnet-4-20250514", "name": "Claude Sonnet 4", "provider": "anthropic", "description": "Latest Claude Sonnet model", "priceIn": 3.00, "priceOut": 15.00, "context_length": 200000},
         {"id": "anthropic/claude-3.5-sonnet-20241022", "name": "Claude 3.5 Sonnet (Latest)", "provider": "anthropic", "description": "Best for security analysis", "priceIn": 3.00, "priceOut": 15.00, "context_length": 200000},
