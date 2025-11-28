@@ -31,11 +31,25 @@ export interface APISettings {
   retryAttempts: number;
 }
 
+// Single AI provider configuration
+export interface AIProviderConfig {
+  id: string;
+  providerType: string;  // 'openrouter', 'openai', 'anthropic', 'custom', etc.
+  customUrl?: string;    // For custom provider URLs
+  apiKey: string;
+  selectedModel: string;
+  providerFilter: string;  // Filter by provider: 'all', 'anthropic', 'openai', etc.
+  enabled: boolean;
+}
+
+// Multiple AI providers settings
 export interface AIProviderSettings {
+  providers: AIProviderConfig[];
+  // Legacy fields for backward compatibility
   openRouterApiKey: string;
   openRouterModel: string;
   openRouterEnabled: boolean;
-  openRouterProvider: string;  // Selected provider filter (e.g., 'all', 'anthropic', 'openai', etc.)
+  openRouterProvider: string;
 }
 
 export interface NotificationSettings {
@@ -85,10 +99,19 @@ const defaultSettings: SettingsState = {
     retryAttempts: 3,
   },
   aiProvider: {
+    providers: [{
+      id: 'default-openrouter',
+      providerType: 'openrouter',
+      apiKey: '',
+      selectedModel: 'anthropic/claude-3.5-sonnet',
+      providerFilter: 'all',
+      enabled: false,
+    }],
+    // Legacy fields for backward compatibility
     openRouterApiKey: '',
     openRouterModel: 'anthropic/claude-3.5-sonnet',
     openRouterEnabled: false,
-    openRouterProvider: 'all',  // Filter by provider: 'all', 'anthropic', 'openai', etc.
+    openRouterProvider: 'all',
   },
   notifications: {
     enabled: true,
@@ -108,12 +131,40 @@ const defaultSettings: SettingsState = {
 /**
  * Load settings from localStorage
  * Falls back to default settings if nothing is stored or if parsing fails
+ * Handles migration from old single-provider structure to new multi-provider structure
  */
 const loadSettingsFromStorage = (): SettingsState => {
   try {
     const storedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY);
     if (storedSettings) {
       const parsed = JSON.parse(storedSettings);
+      
+      // Migrate old aiProvider format to new format with providers array
+      let aiProviderData = { ...defaultSettings.aiProvider };
+      if (parsed.aiProvider) {
+        // Check if we have the new providers array format
+        if (Array.isArray(parsed.aiProvider.providers)) {
+          aiProviderData = { ...defaultSettings.aiProvider, ...parsed.aiProvider };
+        } else {
+          // Migrate from old format to new format
+          aiProviderData = {
+            providers: [{
+              id: 'migrated-openrouter',
+              providerType: 'openrouter',
+              apiKey: parsed.aiProvider.openRouterApiKey || '',
+              selectedModel: parsed.aiProvider.openRouterModel || 'anthropic/claude-3.5-sonnet',
+              providerFilter: parsed.aiProvider.openRouterProvider || 'all',
+              enabled: parsed.aiProvider.openRouterEnabled || false,
+            }],
+            // Keep legacy fields for backward compatibility
+            openRouterApiKey: parsed.aiProvider.openRouterApiKey || '',
+            openRouterModel: parsed.aiProvider.openRouterModel || 'anthropic/claude-3.5-sonnet',
+            openRouterEnabled: parsed.aiProvider.openRouterEnabled || false,
+            openRouterProvider: parsed.aiProvider.openRouterProvider || 'all',
+          };
+        }
+      }
+      
       // Deep merge with defaults to ensure all fields exist
       return {
         ...defaultSettings,
@@ -121,7 +172,7 @@ const loadSettingsFromStorage = (): SettingsState => {
         mcpServer: { ...defaultSettings.mcpServer, ...parsed.mcpServer },
         theme: { ...defaultSettings.theme, ...parsed.theme },
         api: { ...defaultSettings.api, ...parsed.api },
-        aiProvider: { ...defaultSettings.aiProvider, ...parsed.aiProvider },
+        aiProvider: aiProviderData,
         notifications: { ...defaultSettings.notifications, ...parsed.notifications },
         developer: { ...defaultSettings.developer, ...parsed.developer },
       };
@@ -171,6 +222,68 @@ const settingsSlice = createSlice({
     },
     setAIProviderSettings: (state, action: PayloadAction<Partial<AIProviderSettings>>) => {
       state.aiProvider = { ...state.aiProvider, ...action.payload };
+      // Sync legacy fields from first provider for backward compatibility
+      if (state.aiProvider.providers.length > 0) {
+        const firstProvider = state.aiProvider.providers[0];
+        state.aiProvider.openRouterApiKey = firstProvider.apiKey;
+        state.aiProvider.openRouterModel = firstProvider.selectedModel;
+        state.aiProvider.openRouterEnabled = firstProvider.enabled;
+        state.aiProvider.openRouterProvider = firstProvider.providerFilter;
+      }
+    },
+    // Add a new AI provider
+    addAIProvider: (state) => {
+      const newId = `provider-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      state.aiProvider.providers.push({
+        id: newId,
+        providerType: 'openrouter',
+        apiKey: '',
+        selectedModel: 'anthropic/claude-3.5-sonnet',
+        providerFilter: 'all',
+        enabled: false,
+      });
+    },
+    // Remove an AI provider by ID
+    removeAIProvider: (state, action: PayloadAction<string>) => {
+      state.aiProvider.providers = state.aiProvider.providers.filter(
+        (provider) => provider.id !== action.payload
+      );
+      // Ensure at least one provider exists
+      if (state.aiProvider.providers.length === 0) {
+        state.aiProvider.providers.push({
+          id: 'default-openrouter',
+          providerType: 'openrouter',
+          apiKey: '',
+          selectedModel: 'anthropic/claude-3.5-sonnet',
+          providerFilter: 'all',
+          enabled: false,
+        });
+      }
+      // Update legacy fields
+      const firstProvider = state.aiProvider.providers[0];
+      state.aiProvider.openRouterApiKey = firstProvider.apiKey;
+      state.aiProvider.openRouterModel = firstProvider.selectedModel;
+      state.aiProvider.openRouterEnabled = firstProvider.enabled;
+      state.aiProvider.openRouterProvider = firstProvider.providerFilter;
+    },
+    // Update a specific AI provider by ID
+    updateAIProvider: (state, action: PayloadAction<{ id: string; updates: Partial<AIProviderConfig> }>) => {
+      const { id, updates } = action.payload;
+      const providerIndex = state.aiProvider.providers.findIndex((p) => p.id === id);
+      if (providerIndex !== -1) {
+        state.aiProvider.providers[providerIndex] = {
+          ...state.aiProvider.providers[providerIndex],
+          ...updates,
+        };
+        // Update legacy fields if this is the first provider
+        if (providerIndex === 0) {
+          const firstProvider = state.aiProvider.providers[0];
+          state.aiProvider.openRouterApiKey = firstProvider.apiKey;
+          state.aiProvider.openRouterModel = firstProvider.selectedModel;
+          state.aiProvider.openRouterEnabled = firstProvider.enabled;
+          state.aiProvider.openRouterProvider = firstProvider.providerFilter;
+        }
+      }
     },
     setNotificationSettings: (state, action: PayloadAction<Partial<NotificationSettings>>) => {
       state.notifications = { ...state.notifications, ...action.payload };
@@ -208,6 +321,9 @@ export const {
   setThemeSettings,
   setAPISettings,
   setAIProviderSettings,
+  addAIProvider,
+  removeAIProvider,
+  updateAIProvider,
   setNotificationSettings,
   setDeveloperSettings,
   setLoading,
