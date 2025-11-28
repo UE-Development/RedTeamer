@@ -1,6 +1,7 @@
 /**
  * Sidebar Navigation Component
  * Mobile-optimized with temporary drawer for small screens
+ * Responsive sizing adapts to screen width
  */
 
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -11,10 +12,11 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
-  Divider,
   Box,
   Toolbar,
   SwipeableDrawer,
+  useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
@@ -52,6 +54,8 @@ const navItems: NavItem[] = [
 const Sidebar = ({ open, drawerWidth, onClose, isMobile = false, onNavigate }: SidebarProps) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const theme = useTheme();
+  const isLargeScreen = useMediaQuery(theme.breakpoints.up('xl'));
 
   const handleNavigate = (path: string) => {
     navigate(path);
@@ -61,71 +65,122 @@ const Sidebar = ({ open, drawerWidth, onClose, isMobile = false, onNavigate }: S
     }
   };
 
+  // Responsive icon and text sizing
+  const iconSize = isLargeScreen ? 26 : 22;
+  const fontSize = isLargeScreen ? '0.95rem' : '0.875rem';
+
   const drawer = (
-    <>
-      <Toolbar sx={{ borderBottom: '1px solid', borderColor: 'divider' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <Toolbar sx={{ 
+        borderBottom: '1px solid', 
+        borderColor: 'divider',
+        minHeight: { xs: 56, sm: 64 },
+        px: { xs: 1, sm: 2 },
+      }}>
         <Box
           component="img"
           src="/hexstrike-logo.png"
           alt="HexStrike Logo"
-          sx={{ height: 40, width: 'auto' }}
+          sx={{ 
+            height: { xs: 32, sm: 36, lg: 40 }, 
+            width: 'auto',
+            transition: 'height 0.2s ease',
+          }}
           onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
             // Fallback if image not found
             e.currentTarget.style.display = 'none';
           }}
         />
       </Toolbar>
-      <List>
-        {navItems.map((item) => (
-          <ListItem key={item.path} disablePadding>
-            <ListItemButton
-              selected={location.pathname === item.path}
-              onClick={() => handleNavigate(item.path)}
-              sx={{
-                py: { xs: 1.5, sm: 1 },
+      
+      {/* Scrollable navigation area */}
+      <Box sx={{ flexGrow: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+        <List sx={{ py: 1 }}>
+          {navItems.map((item) => (
+            <ListItem key={item.path} disablePadding sx={{ px: 1 }}>
+              <ListItemButton
+                selected={location.pathname === item.path}
+                onClick={() => handleNavigate(item.path)}
+                sx={{
+                  py: { xs: 1.25, sm: 1, lg: 1.25 },
+                  px: { xs: 1.5, sm: 2 },
+                  borderRadius: 1,
+                  mb: 0.5,
+                  '&.Mui-selected': {
+                    bgcolor: 'primary.main',
+                    '&:hover': {
+                      bgcolor: 'primary.dark',
+                    },
+                  },
+                  '&:hover': {
+                    bgcolor: 'action.hover',
+                  },
+                  transition: 'all 0.15s ease-in-out',
+                }}
+              >
+                <ListItemIcon sx={{ 
+                  color: 'inherit', 
+                  minWidth: { xs: 36, sm: 40, lg: 44 },
+                  '& .MuiSvgIcon-root': {
+                    fontSize: iconSize,
+                  },
+                }}>
+                  {item.icon}
+                </ListItemIcon>
+                <ListItemText
+                  primary={item.text}
+                  primaryTypographyProps={{
+                    fontWeight: location.pathname === item.path ? 600 : 400,
+                    fontSize: { xs: '0.9rem', sm: fontSize },
+                    noWrap: true,
+                  }}
+                />
+              </ListItemButton>
+            </ListItem>
+          ))}
+        </List>
+      </Box>
+      
+      {/* Settings at bottom */}
+      <Box sx={{ borderTop: '1px solid', borderColor: 'divider', py: 1 }}>
+        <List sx={{ py: 0 }}>
+          <ListItem disablePadding sx={{ px: 1 }}>
+            <ListItemButton 
+              selected={location.pathname === '/settings'}
+              onClick={() => handleNavigate('/settings')}
+              sx={{ 
+                py: { xs: 1.25, sm: 1, lg: 1.25 },
+                px: { xs: 1.5, sm: 2 },
+                borderRadius: 1,
                 '&.Mui-selected': {
                   bgcolor: 'primary.main',
                   '&:hover': {
                     bgcolor: 'primary.dark',
                   },
                 },
-                '&:hover': {
-                  bgcolor: 'action.hover',
-                },
               }}
             >
-              <ListItemIcon sx={{ color: 'inherit', minWidth: 40 }}>{item.icon}</ListItemIcon>
-              <ListItemText
-                primary={item.text}
+              <ListItemIcon sx={{ 
+                color: 'inherit', 
+                minWidth: { xs: 36, sm: 40, lg: 44 },
+                '& .MuiSvgIcon-root': {
+                  fontSize: iconSize,
+                },
+              }}>
+                <SettingsIcon />
+              </ListItemIcon>
+              <ListItemText 
+                primary="Settings" 
                 primaryTypographyProps={{
-                  fontWeight: location.pathname === item.path ? 600 : 400,
-                  fontSize: { xs: '1rem', sm: '0.875rem' },
+                  fontSize: { xs: '0.9rem', sm: fontSize },
+                  fontWeight: location.pathname === '/settings' ? 600 : 400,
                 }}
               />
             </ListItemButton>
           </ListItem>
-        ))}
-      </List>
-      <Divider sx={{ my: 2 }} />
-      <List>
-        <ListItem disablePadding>
-          <ListItemButton 
-            onClick={() => handleNavigate('/settings')}
-            sx={{ py: { xs: 1.5, sm: 1 } }}
-          >
-            <ListItemIcon sx={{ color: 'inherit', minWidth: 40 }}>
-              <SettingsIcon />
-            </ListItemIcon>
-            <ListItemText 
-              primary="Settings" 
-              primaryTypographyProps={{
-                fontSize: { xs: '1rem', sm: '0.875rem' },
-              }}
-            />
-          </ListItemButton>
-        </ListItem>
-      </List>
-    </>
+        </List>
+      </Box>
+    </Box>
   );
 
   // Use SwipeableDrawer for mobile, permanent Drawer for desktop
@@ -141,7 +196,8 @@ const Sidebar = ({ open, drawerWidth, onClose, isMobile = false, onNavigate }: S
         }}
         sx={{
           '& .MuiDrawer-paper': {
-            width: drawerWidth,
+            width: { xs: '80vw', sm: drawerWidth },
+            maxWidth: 300,
             boxSizing: 'border-box',
           },
         }}
@@ -161,6 +217,10 @@ const Sidebar = ({ open, drawerWidth, onClose, isMobile = false, onNavigate }: S
         '& .MuiDrawer-paper': {
           width: drawerWidth,
           boxSizing: 'border-box',
+          transition: theme.transitions.create('width', {
+            easing: theme.transitions.easing.easeInOut,
+            duration: theme.transitions.duration.standard,
+          }),
         },
       }}
     >
