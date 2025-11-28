@@ -45,10 +45,12 @@ interface BackendTool {
   usageCount: number;
 }
 
+// Valid tool categories - extracted as module constant for reuse
+const VALID_TOOL_CATEGORIES: ToolCategory[] = ['network', 'web', 'binary', 'cloud', 'ctf', 'osint', 'password'];
+
 // Helper to validate and transform backend tool data
 function transformBackendTool(tool: BackendTool): Tool {
-  const validCategories: ToolCategory[] = ['network', 'web', 'binary', 'cloud', 'ctf', 'osint', 'password'];
-  const category = validCategories.includes(tool.category as ToolCategory) 
+  const category = VALID_TOOL_CATEGORIES.includes(tool.category as ToolCategory) 
     ? (tool.category as ToolCategory) 
     : 'network';
   

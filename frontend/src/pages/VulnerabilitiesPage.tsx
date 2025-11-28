@@ -56,18 +56,22 @@ interface BackendVulnerability {
   references?: string[];
 }
 
+// Valid vulnerability severities - extracted as module constant for reuse
+const VALID_SEVERITIES: VulnerabilitySeverity[] = ['critical', 'high', 'medium', 'low', 'info'];
+
+// Valid vulnerability statuses - extracted as module constant for reuse
+const VALID_STATUSES: VulnerabilityStatus[] = ['new', 'confirmed', 'false_positive', 'remediated'];
+
 // Helper to validate vulnerability severity
 function validateSeverity(severity: string): VulnerabilitySeverity {
-  const validSeverities: VulnerabilitySeverity[] = ['critical', 'high', 'medium', 'low', 'info'];
-  return validSeverities.includes(severity as VulnerabilitySeverity) 
+  return VALID_SEVERITIES.includes(severity as VulnerabilitySeverity) 
     ? (severity as VulnerabilitySeverity) 
     : 'medium';
 }
 
 // Helper to validate vulnerability status
 function validateStatus(status: string): VulnerabilityStatus {
-  const validStatuses: VulnerabilityStatus[] = ['new', 'confirmed', 'false_positive', 'remediated'];
-  return validStatuses.includes(status as VulnerabilityStatus) 
+  return VALID_STATUSES.includes(status as VulnerabilityStatus) 
     ? (status as VulnerabilityStatus) 
     : 'new';
 }

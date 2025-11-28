@@ -17682,12 +17682,20 @@ def _get_tools_for_message(message: str, agent: dict) -> list:
 
 # ============================================================================
 # TOOLS, SCANS, VULNERABILITIES & DASHBOARD API ENDPOINTS
+# These endpoints provide real data streams for the frontend when demo mode is off.
+# They replace mock data with live backend state management.
 # ============================================================================
 
 # Thread locks for state modifications
 _tools_lock = threading.Lock()
 _scans_lock = threading.Lock()
 _vulnerabilities_lock = threading.Lock()
+
+# Valid filter values for input validation
+VALID_SCAN_STATUSES = {'queued', 'running', 'completed', 'failed', 'paused'}
+VALID_VULNERABILITY_SEVERITIES = {'critical', 'high', 'medium', 'low', 'info'}
+VALID_VULNERABILITY_STATUSES = {'new', 'confirmed', 'false_positive', 'remediated'}
+VALID_TOOL_CATEGORIES = {'network', 'web', 'binary', 'cloud', 'ctf', 'osint', 'password'}
 
 # Comprehensive security tools database matching frontend's securityTools.ts
 _security_tools = [
@@ -17842,6 +17850,13 @@ def list_scans():
     """List all scans"""
     try:
         status_filter = request.args.get("status", None)
+        
+        # Validate status filter if provided
+        if status_filter and status_filter not in VALID_SCAN_STATUSES:
+            return jsonify({
+                "success": False,
+                "error": f"Invalid status filter. Must be one of: {', '.join(VALID_SCAN_STATUSES)}"
+            }), 400
         
         with _scans_lock:
             scans_list = list(_active_scans.values())
@@ -18005,6 +18020,20 @@ def list_vulnerabilities():
     try:
         severity_filter = request.args.get("severity", None)
         status_filter = request.args.get("status", None)
+        
+        # Validate severity filter if provided
+        if severity_filter and severity_filter not in VALID_VULNERABILITY_SEVERITIES:
+            return jsonify({
+                "success": False,
+                "error": f"Invalid severity filter. Must be one of: {', '.join(VALID_VULNERABILITY_SEVERITIES)}"
+            }), 400
+        
+        # Validate status filter if provided
+        if status_filter and status_filter not in VALID_VULNERABILITY_STATUSES:
+            return jsonify({
+                "success": False,
+                "error": f"Invalid status filter. Must be one of: {', '.join(VALID_VULNERABILITY_STATUSES)}"
+            }), 400
         
         with _vulnerabilities_lock:
             vulns_list = _vulnerabilities.copy()

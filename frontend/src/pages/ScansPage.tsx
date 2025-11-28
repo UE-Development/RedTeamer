@@ -76,10 +76,12 @@ interface BackendScan {
   toolsUsed?: string[];
 }
 
+// Valid scan statuses - extracted as module constant for reuse
+const VALID_SCAN_STATUSES: Scan['status'][] = ['queued', 'running', 'completed', 'failed', 'paused'];
+
 // Helper to validate scan status
 function validateScanStatus(status: string): Scan['status'] {
-  const validStatuses: Scan['status'][] = ['queued', 'running', 'completed', 'failed', 'paused'];
-  return validStatuses.includes(status as Scan['status']) ? (status as Scan['status']) : 'queued';
+  return VALID_SCAN_STATUSES.includes(status as Scan['status']) ? (status as Scan['status']) : 'queued';
 }
 
 // Helper to transform backend scan to frontend scan
