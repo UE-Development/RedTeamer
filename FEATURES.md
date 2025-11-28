@@ -23,6 +23,7 @@
 | **Authentication System** | ✅ Complete | JWT-based login, session management, protected routes |
 | **Dashboard** | ✅ Complete | Security overview, real-time metrics, quick actions, charts |
 | **AI Agents (12+)** | ✅ Complete | Agent cards, status indicators, activation, chat interface |
+| **AI-Powered Responses** | ✅ Complete | OpenAI/Anthropic integration for intelligent agent responses |
 | **Tools Library (162+)** | ✅ Complete | Full tool catalog, categories, search, launch interface |
 | **Scans Management** | ✅ Complete | Create scans, progress tracking, results view, history |
 | **Vulnerabilities** | ✅ Complete | Severity indicators, filtering, remediation, export |
@@ -49,9 +50,46 @@
 | Component | Priority | Notes |
 |-----------|----------|-------|
 | Compliance Tracking | Medium | GDPR, PCI-DSS, SOC 2 |
-| AI Recommendations | High | Predictive analytics |
 | Mobile App | Low | React Native version |
 | Custom Plugin System | Medium | Third-party extensions |
+
+---
+
+## 🤖 AI-Powered Agent Responses
+
+HexStrike AI now supports intelligent, context-aware responses from AI agents using external AI providers.
+
+### Configuration
+
+Set one of the following environment variables to enable AI-powered responses:
+
+```bash
+# For OpenAI (GPT-4o, GPT-4, etc.)
+export OPENAI_API_KEY="sk-your-openai-api-key"
+export OPENAI_MODEL="gpt-4o-mini"  # Optional, defaults to gpt-4o-mini
+
+# For Anthropic (Claude)
+export ANTHROPIC_API_KEY="sk-ant-your-anthropic-api-key"
+export ANTHROPIC_MODEL="claude-3-haiku-20240307"  # Optional
+
+# Provider selection (auto, openai, anthropic)
+export HEXSTRIKE_AI_PROVIDER="auto"  # Defaults to auto
+```
+
+### Features
+
+- **Context-aware responses**: Each agent type has specialized system prompts
+- **Tool recommendations**: AI automatically suggests relevant security tools
+- **Multiple providers**: Supports OpenAI and Anthropic APIs
+- **Graceful fallback**: Falls back to template responses if no API keys configured
+- **Agent-specific expertise**: Each of the 12 agents has unique capabilities and knowledge
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/agents/<id>/message` | POST | Send message to agent, get AI response |
+| `/api/agents/ai-config` | GET | Check AI configuration status |
 
 ---
 

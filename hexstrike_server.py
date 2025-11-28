@@ -17446,6 +17446,440 @@ _available_agents = {
     },
 }
 
+# ============================================================================
+# AI-POWERED AGENT RESPONSE SYSTEM
+# Integrates with OpenAI/Anthropic APIs for intelligent responses
+# Falls back to template responses if no API keys are configured
+# ============================================================================
+
+class AIAgentEngine:
+    """AI-powered agent response engine supporting multiple providers"""
+    
+    def __init__(self):
+        self.openai_api_key = os.environ.get("OPENAI_API_KEY", "")
+        self.anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        self.ai_provider = os.environ.get("HEXSTRIKE_AI_PROVIDER", "auto")  # auto, openai, anthropic
+        self.ai_enabled = bool(self.openai_api_key or self.anthropic_api_key)
+        
+        if self.ai_enabled:
+            logger.info("🤖 AI Agent Engine initialized with external AI provider")
+            if self.openai_api_key:
+                logger.info("  ├─ OpenAI API: Available")
+            if self.anthropic_api_key:
+                logger.info("  └─ Anthropic API: Available")
+        else:
+            logger.info("🤖 AI Agent Engine initialized (template mode - set OPENAI_API_KEY or ANTHROPIC_API_KEY for AI responses)")
+    
+    def get_system_prompt(self, agent: dict) -> str:
+        """Generate system prompt for agent based on its type and capabilities"""
+        agent_type = agent.get("type", "")
+        agent_name = agent.get("name", "Security Agent")
+        capabilities = agent.get("capabilities", [])
+        description = agent.get("description", "")
+        
+        base_prompt = f"""You are {agent_name}, an AI-powered cybersecurity agent in the HexStrike AI platform.
+
+Your role: {description}
+
+Your specialized capabilities:
+{chr(10).join([f'- {cap}' for cap in capabilities])}
+
+Guidelines:
+1. Provide actionable security insights and recommendations
+2. Be concise but thorough in your analysis
+3. Include relevant security tools when applicable (Nmap, Nuclei, Burp Suite, SQLMap, etc.)
+4. Format responses with emojis and clear structure for readability
+5. Always consider security best practices and ethical hacking principles
+6. When asked to scan or test, describe the methodology you would use
+7. Reference relevant CVEs, OWASP Top 10, or MITRE ATT&CK when applicable
+8. Suggest next steps for security assessments
+
+You have access to 162+ security tools including:
+- Network: Nmap, Rustscan, Masscan, Amass, Subfinder
+- Web: Nuclei, Nikto, SQLMap, Burp Suite, Gobuster, FFuf
+- Cloud: Prowler, Trivy, Scout Suite, kube-hunter
+- Binary: Ghidra, Radare2, Binary Ninja
+- OSINT: TheHarvester, Shodan, Maltego
+- Password: John, Hashcat, Hydra"""
+        
+        # Add agent-specific context
+        agent_contexts = {
+            "bugbounty": """
+Focus on bug bounty hunting methodology:
+- Reconnaissance and asset discovery
+- Subdomain enumeration and takeover checks
+- Web application vulnerability testing
+- API security testing
+- Authentication and authorization flaws
+- Business logic vulnerabilities
+Always prioritize by impact and bounty potential (P1-Critical, P2-High, P3-Medium).""",
+            
+            "ctf": """
+Focus on CTF challenge solving:
+- Cryptography challenges (RSA, AES, hashing)
+- Reverse engineering binaries
+- Forensics and steganography
+- Web exploitation
+- Binary exploitation (buffer overflows, ROP chains)
+- Privilege escalation techniques
+Provide step-by-step methodology for solving challenges.""",
+            
+            "cve_intelligence": """
+Focus on CVE and vulnerability intelligence:
+- CVE lookup and analysis
+- Exploit availability assessment
+- CVSS score interpretation
+- Affected software versions
+- Patch availability
+- Threat actor exploitation
+Provide actionable intelligence for vulnerability management.""",
+            
+            "exploit_generator": """
+Focus on exploit development:
+- Proof of Concept (PoC) generation
+- Payload crafting for various platforms
+- Evasion techniques
+- Shellcode development
+- Exploitation methodology
+Always emphasize responsible disclosure and ethical use.""",
+            
+            "web_security": """
+Focus on web application security:
+- OWASP Top 10 vulnerabilities
+- XSS (Reflected, Stored, DOM-based)
+- SQL Injection (Error-based, Blind, Time-based)
+- CSRF and SSRF attacks
+- Authentication/Authorization flaws
+- API security testing
+Provide specific payloads and testing methodology.""",
+            
+            "auth_testing": """
+Focus on authentication and authorization testing:
+- Authentication bypass techniques
+- Session management flaws
+- Password policy testing
+- Multi-factor authentication bypass
+- OAuth/OIDC vulnerabilities
+- Privilege escalation
+Include specific test cases and expected behaviors.""",
+            
+            "cloud_security": """
+Focus on cloud security assessment:
+- AWS/Azure/GCP misconfigurations
+- IAM policy analysis
+- S3 bucket/blob storage security
+- Container security
+- Kubernetes security
+- Serverless security
+Use cloud-native security tools and frameworks.""",
+            
+            "osint": """
+Focus on Open Source Intelligence gathering:
+- Domain and IP reconnaissance
+- Social media intelligence
+- Email harvesting
+- Employee enumeration
+- Technology fingerprinting
+- Credential leaks
+Emphasize passive reconnaissance techniques.""",
+            
+            "network_recon": """
+Focus on network reconnaissance:
+- Port scanning and service detection
+- Network topology mapping
+- Firewall evasion techniques
+- Traffic analysis
+- Vulnerability scanning
+- Service enumeration
+Provide comprehensive network assessment methodology.""",
+            
+            "report_generator": """
+Focus on security report generation:
+- Executive summaries
+- Technical findings documentation
+- Risk ratings and prioritization
+- Remediation recommendations
+- Evidence and proof of concept
+- Compliance mapping (PCI-DSS, HIPAA, etc.)
+Structure reports for both technical and executive audiences."""
+        }
+        
+        if agent_type in agent_contexts:
+            base_prompt += agent_contexts[agent_type]
+        
+        return base_prompt
+    
+    def generate_response(self, agent: dict, message: str) -> tuple:
+        """Generate AI response for agent message. Returns (response, tools_used, ai_provider)"""
+        
+        # Try AI providers in order
+        if self.ai_enabled:
+            # Determine provider
+            provider = self.ai_provider
+            if provider == "auto":
+                provider = "anthropic" if self.anthropic_api_key else "openai"
+            
+            try:
+                if provider == "anthropic" and self.anthropic_api_key:
+                    response, tools = self._call_anthropic(agent, message)
+                    return response, tools, "anthropic"
+                elif provider == "openai" and self.openai_api_key:
+                    response, tools = self._call_openai(agent, message)
+                    return response, tools, "openai"
+            except Exception as e:
+                logger.warning(f"AI provider {provider} failed: {str(e)}, falling back to templates")
+        
+        # Fall back to template responses
+        response = self._generate_template_response(agent, message)
+        tools = self._get_tools_for_message(message, agent)
+        return response, tools, "template"
+    
+    def _call_openai(self, agent: dict, message: str) -> tuple:
+        """Call OpenAI API for response generation"""
+        import requests as req
+        
+        system_prompt = self.get_system_prompt(agent)
+        
+        headers = {
+            "Authorization": f"Bearer {self.openai_api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "model": os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": message}
+            ],
+            "temperature": 0.7,
+            "max_tokens": 2000
+        }
+        
+        response = req.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=60
+        )
+        response.raise_for_status()
+        
+        result = response.json()
+        content = result["choices"][0]["message"]["content"]
+        
+        # Extract tools mentioned in response
+        tools = self._extract_tools_from_response(content)
+        
+        return content, tools
+    
+    def _call_anthropic(self, agent: dict, message: str) -> tuple:
+        """Call Anthropic API for response generation"""
+        import requests as req
+        
+        system_prompt = self.get_system_prompt(agent)
+        
+        headers = {
+            "x-api-key": self.anthropic_api_key,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "model": os.environ.get("ANTHROPIC_MODEL", "claude-3-haiku-20240307"),
+            "max_tokens": 2000,
+            "system": system_prompt,
+            "messages": [
+                {"role": "user", "content": message}
+            ]
+        }
+        
+        response = req.post(
+            "https://api.anthropic.com/v1/messages",
+            headers=headers,
+            json=payload,
+            timeout=60
+        )
+        response.raise_for_status()
+        
+        result = response.json()
+        content = result["content"][0]["text"]
+        
+        # Extract tools mentioned in response
+        tools = self._extract_tools_from_response(content)
+        
+        return content, tools
+    
+    def _extract_tools_from_response(self, content: str) -> list:
+        """Extract security tools mentioned in AI response"""
+        content_lower = content.lower()
+        tools = []
+        
+        # Map of tool keywords to tool names
+        tool_keywords = {
+            "nmap": "Nmap",
+            "rustscan": "Rustscan",
+            "masscan": "Masscan",
+            "nuclei": "Nuclei",
+            "nikto": "Nikto",
+            "sqlmap": "SQLMap",
+            "burp": "Burp Suite",
+            "gobuster": "Gobuster",
+            "ffuf": "FFuf",
+            "amass": "Amass",
+            "subfinder": "Subfinder",
+            "hydra": "Hydra",
+            "john": "John the Ripper",
+            "hashcat": "Hashcat",
+            "metasploit": "Metasploit",
+            "prowler": "Prowler",
+            "trivy": "Trivy",
+            "ghidra": "Ghidra",
+            "radare": "Radare2",
+            "shodan": "Shodan",
+            "theharvester": "theHarvester",
+            "wpscan": "WPScan",
+            "dalfox": "Dalfox",
+            "xsstrike": "XSStrike",
+            "dirbuster": "DirBuster",
+            "dirb": "Dirb",
+            "feroxbuster": "Feroxbuster",
+            "wfuzz": "Wfuzz",
+            "netexec": "NetExec",
+            "crackmapexec": "CrackMapExec",
+            "bloodhound": "BloodHound",
+            "mimikatz": "Mimikatz",
+            "responder": "Responder",
+            "impacket": "Impacket"
+        }
+        
+        for keyword, tool_name in tool_keywords.items():
+            if keyword in content_lower and tool_name not in tools:
+                tools.append(tool_name)
+        
+        return tools[:10] if tools else ["Analysis Engine"]
+    
+    def _generate_template_response(self, agent: dict, message: str) -> str:
+        """Generate template-based response (fallback when AI is not available)"""
+        agent_type = agent.get("type", "")
+        message_lower = message.lower()
+        
+        # General scan/test commands
+        if any(word in message_lower for word in ["scan", "test", "analyze", "check"]):
+            return f"""🎯 {agent['name']} - Security Assessment Initiated
+
+I'm processing your request: "{message[:100]}..."
+
+📊 Analysis Overview:
+├─ Target identified and validated
+├─ Security assessment modules activated
+├─ Running comprehensive checks
+└─ Gathering intelligence data
+
+🔍 Preliminary Findings:
+• Target reconnaissance in progress
+• Service detection running
+• Vulnerability assessment queued
+
+💡 This is a live response from the HexStrike backend.
+   The agent is actively processing your request.
+
+⚙️ Note: For AI-powered responses, configure OPENAI_API_KEY or ANTHROPIC_API_KEY environment variables.
+
+Use the tools and intelligence endpoints for detailed analysis."""
+        
+        # CVE/Vulnerability related queries
+        if any(word in message_lower for word in ["cve", "vulnerability", "vuln", "exploit"]):
+            return f"""🔍 {agent['name']} - CVE Intelligence Analysis
+
+Processing vulnerability query: "{message[:100]}..."
+
+📋 Intelligence Report:
+├─ Querying CVE databases (NVD, MITRE, ExploitDB)
+├─ Analyzing vulnerability patterns
+├─ Correlating with threat intelligence feeds
+└─ Generating impact assessment
+
+🎯 Recommended Actions:
+1. Review affected components
+2. Check for available patches
+3. Implement compensating controls
+4. Monitor for exploitation attempts
+
+⚙️ Note: For AI-powered responses, configure OPENAI_API_KEY or ANTHROPIC_API_KEY.
+
+This response is from the HexStrike Intelligence Engine.
+Use /api/intelligence endpoints for detailed CVE data."""
+        
+        # Report generation
+        if any(word in message_lower for word in ["report", "summary", "document"]):
+            return f"""📊 {agent['name']} - Report Generation
+
+Preparing security documentation...
+
+✅ Report Sections:
+├─ Executive Summary
+├─ Technical Findings
+├─ Risk Assessment Matrix
+├─ Remediation Roadmap
+└─ Appendices & Evidence
+
+📁 Available Formats:
+• PDF - Executive presentation
+• HTML - Interactive dashboard
+• JSON - API integration
+• Markdown - Documentation
+
+⚙️ Note: For AI-powered responses, configure OPENAI_API_KEY or ANTHROPIC_API_KEY.
+
+Report generation in progress. Use the /api/reports endpoints for download."""
+        
+        # Default response
+        return f"""✨ {agent['name']} - Ready
+
+Received: "{message[:100]}..."
+
+I'm an AI-powered security agent with these capabilities:
+{chr(10).join([f'  • {cap}' for cap in agent.get('capabilities', [])])}
+
+🔄 Processing your request...
+
+The HexStrike backend is connected and operational.
+I can help with:
+• Security assessments and scans
+• Vulnerability analysis
+• CVE intelligence gathering
+• Report generation
+• Tool orchestration
+
+⚙️ **Enable AI Responses:**
+Set OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable for intelligent AI-powered responses.
+
+Provide more details about your target or task for focused analysis."""
+    
+    def _get_tools_for_message(self, message: str, agent: dict) -> list:
+        """Get relevant tools based on the message content"""
+        message_lower = message.lower()
+        tools = []
+        
+        if any(word in message_lower for word in ["scan", "port"]):
+            tools.extend(["Nmap", "Rustscan"])
+        if any(word in message_lower for word in ["web", "http", "url"]):
+            tools.extend(["Nuclei", "Nikto"])
+        if any(word in message_lower for word in ["subdomain", "domain"]):
+            tools.extend(["Amass", "Subfinder"])
+        if any(word in message_lower for word in ["sql", "injection"]):
+            tools.append("SQLMap")
+        if any(word in message_lower for word in ["xss", "cross-site"]):
+            tools.extend(["Dalfox", "XSSHunter"])
+        if any(word in message_lower for word in ["cve", "vulnerability"]):
+            tools.extend(["NVD API", "CVE Search"])
+        if any(word in message_lower for word in ["directory", "fuzz", "bruteforce"]):
+            tools.extend(["Gobuster", "FFuf"])
+        
+        return list(set(tools)) if tools else ["Analysis Engine"]
+
+# Initialize AI Agent Engine
+_ai_agent_engine = AIAgentEngine()
+
 @app.route("/api/agents/list", methods=["GET"])
 def list_agents():
     """List all available AI agents"""
@@ -17534,7 +17968,7 @@ def deactivate_agent(agent_id: str):
 
 @app.route("/api/agents/<agent_id>/message", methods=["POST"])
 def send_agent_message(agent_id: str):
-    """Send a message to an agent and get a response"""
+    """Send a message to an agent and get an AI-powered response"""
     try:
         data = request.get_json()
         message = data.get("message", "")
@@ -17551,9 +17985,10 @@ def send_agent_message(agent_id: str):
         # Log message metadata only (not content for security)
         logger.info(f"Agent {agent_id} ({agent['name']}) received message (length: {len(message)})")
         
-        # Process the message based on agent type and content
-        response_content = _process_agent_message(agent, message)
-        tools_used = _get_tools_for_message(message, agent)
+        # Use AI-powered agent engine for response generation
+        response_content, tools_used, ai_provider = _ai_agent_engine.generate_response(agent, message)
+        
+        logger.info(f"Agent {agent_id} responded using {ai_provider} provider")
         
         return jsonify({
             "success": True,
@@ -17562,6 +17997,7 @@ def send_agent_message(agent_id: str):
             "message": message,
             "response": response_content,
             "tools_used": tools_used,
+            "ai_provider": ai_provider,
             "status": "completed",
             "timestamp": datetime.now().isoformat()
         })
@@ -17569,116 +18005,29 @@ def send_agent_message(agent_id: str):
         logger.error(f"Error processing agent message: {str(e)}")
         return jsonify({"error": f"Server error: {str(e)}"}), 500
 
-def _process_agent_message(agent: dict, message: str) -> str:
-    """Process a message and generate an appropriate response based on agent type"""
-    agent_type = agent.get("type", "")
-    message_lower = message.lower()
-    
-    # General scan/test commands
-    if any(word in message_lower for word in ["scan", "test", "analyze", "check"]):
-        return f"""🎯 {agent['name']} - Security Assessment Initiated
-
-I'm processing your request: "{message[:100]}..."
-
-📊 Analysis Overview:
-├─ Target identified and validated
-├─ Security assessment modules activated
-├─ Running comprehensive checks
-└─ Gathering intelligence data
-
-🔍 Preliminary Findings:
-• Target reconnaissance in progress
-• Service detection running
-• Vulnerability assessment queued
-
-💡 This is a live response from the HexStrike backend.
-   The agent is actively processing your request.
-
-Use the tools and intelligence endpoints for detailed analysis."""
-
-    # CVE/Vulnerability related queries
-    if any(word in message_lower for word in ["cve", "vulnerability", "vuln", "exploit"]):
-        return f"""🔍 {agent['name']} - CVE Intelligence Analysis
-
-Processing vulnerability query: "{message[:100]}..."
-
-📋 Intelligence Report:
-├─ Querying CVE databases (NVD, MITRE, ExploitDB)
-├─ Analyzing vulnerability patterns
-├─ Correlating with threat intelligence feeds
-└─ Generating impact assessment
-
-🎯 Recommended Actions:
-1. Review affected components
-2. Check for available patches
-3. Implement compensating controls
-4. Monitor for exploitation attempts
-
-This response is from the HexStrike Intelligence Engine.
-Use /api/intelligence endpoints for detailed CVE data."""
-
-    # Report generation
-    if any(word in message_lower for word in ["report", "summary", "document"]):
-        return f"""📊 {agent['name']} - Report Generation
-
-Preparing security documentation...
-
-✅ Report Sections:
-├─ Executive Summary
-├─ Technical Findings
-├─ Risk Assessment Matrix
-├─ Remediation Roadmap
-└─ Appendices & Evidence
-
-📁 Available Formats:
-• PDF - Executive presentation
-• HTML - Interactive dashboard
-• JSON - API integration
-• Markdown - Documentation
-
-Report generation in progress. Use the /api/reports endpoints for download."""
-
-    # Default response
-    return f"""✨ {agent['name']} - Ready
-
-Received: "{message[:100]}..."
-
-I'm an AI-powered security agent with these capabilities:
-{chr(10).join([f'  • {cap}' for cap in agent.get('capabilities', [])])}
-
-🔄 Processing your request...
-
-The HexStrike backend is connected and operational.
-I can help with:
-• Security assessments and scans
-• Vulnerability analysis
-• CVE intelligence gathering
-• Report generation
-• Tool orchestration
-
-Provide more details about your target or task for focused analysis."""
-
-def _get_tools_for_message(message: str, agent: dict) -> list:
-    """Get relevant tools based on the message content"""
-    message_lower = message.lower()
-    tools = []
-    
-    if any(word in message_lower for word in ["scan", "port"]):
-        tools.extend(["Nmap", "Rustscan"])
-    if any(word in message_lower for word in ["web", "http", "url"]):
-        tools.extend(["Nuclei", "Nikto"])
-    if any(word in message_lower for word in ["subdomain", "domain"]):
-        tools.extend(["Amass", "Subfinder"])
-    if any(word in message_lower for word in ["sql", "injection"]):
-        tools.append("SQLMap")
-    if any(word in message_lower for word in ["xss", "cross-site"]):
-        tools.extend(["Dalfox", "XSSHunter"])
-    if any(word in message_lower for word in ["cve", "vulnerability"]):
-        tools.extend(["NVD API", "CVE Search"])
-    if any(word in message_lower for word in ["directory", "fuzz", "bruteforce"]):
-        tools.extend(["Gobuster", "FFuf"])
-    
-    return list(set(tools)) if tools else ["Analysis Engine"]
+@app.route("/api/agents/ai-config", methods=["GET"])
+def get_ai_config():
+    """Get AI agent configuration status"""
+    try:
+        return jsonify({
+            "success": True,
+            "ai_enabled": _ai_agent_engine.ai_enabled,
+            "provider": _ai_agent_engine.ai_provider,
+            "openai_configured": bool(_ai_agent_engine.openai_api_key),
+            "anthropic_configured": bool(_ai_agent_engine.anthropic_api_key),
+            "instructions": {
+                "openai": "Set OPENAI_API_KEY environment variable to enable OpenAI responses",
+                "anthropic": "Set ANTHROPIC_API_KEY environment variable to enable Anthropic/Claude responses",
+                "model_config": {
+                    "openai_model": os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+                    "anthropic_model": os.environ.get("ANTHROPIC_MODEL", "claude-3-haiku-20240307")
+                }
+            },
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error getting AI config: {str(e)}")
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
 
 # ============================================================================
 # TOOLS, SCANS, VULNERABILITIES & DASHBOARD API ENDPOINTS
