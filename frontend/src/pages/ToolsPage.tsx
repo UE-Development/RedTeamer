@@ -205,7 +205,7 @@ const ToolsPage = () => {
           icon={<InfoIcon />}
           sx={{ mb: 2 }}
         >
-          {isLoading ? 'Loading tools from backend...' : `Showing ${tools.length} tools from the backend. Enable Demo Mode in Settings for the full 160+ tool library.`}
+          {isLoading ? 'Loading tools from backend...' : `Showing ${tools.length} tools from the backend.`}
         </Alert>
       )}
       
