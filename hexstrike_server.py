@@ -17681,6 +17681,498 @@ def _get_tools_for_message(message: str, agent: dict) -> list:
     return list(set(tools)) if tools else ["Analysis Engine"]
 
 # ============================================================================
+# TOOLS, SCANS, VULNERABILITIES & DASHBOARD API ENDPOINTS
+# ============================================================================
+
+# Thread locks for state modifications
+_tools_lock = threading.Lock()
+_scans_lock = threading.Lock()
+_vulnerabilities_lock = threading.Lock()
+
+# Comprehensive security tools database matching frontend's securityTools.ts
+_security_tools = [
+    # Network Reconnaissance & Scanning Tools
+    {"id": "net-1", "name": "Nmap", "category": "network", "version": "7.94", "description": "Advanced port scanning with custom NSE scripts and service detection", "installed": True, "usageCount": 245},
+    {"id": "net-2", "name": "Rustscan", "category": "network", "version": "2.1.1", "description": "Ultra-fast port scanner with intelligent rate limiting", "installed": True, "usageCount": 189},
+    {"id": "net-3", "name": "Masscan", "category": "network", "version": "1.3.2", "description": "High-speed Internet-scale port scanning with banner grabbing", "installed": True, "usageCount": 167},
+    {"id": "net-4", "name": "AutoRecon", "category": "network", "version": "2.0.1", "description": "Comprehensive automated reconnaissance with 35+ parameters", "installed": True, "usageCount": 145},
+    {"id": "net-5", "name": "Amass", "category": "network", "version": "3.23.3", "description": "Advanced subdomain enumeration and OSINT gathering", "installed": True, "usageCount": 234},
+    {"id": "net-6", "name": "Subfinder", "category": "network", "version": "2.6.3", "description": "Fast passive subdomain discovery with multiple sources", "installed": True, "usageCount": 198},
+    {"id": "net-7", "name": "Enum4linux", "category": "network", "version": "0.9.1", "description": "SMB enumeration with user, group, and share discovery", "installed": True, "usageCount": 98},
+    {"id": "net-8", "name": "SMBMap", "category": "network", "version": "1.8.5", "description": "SMB share enumeration and exploitation", "installed": True, "usageCount": 134},
+    {"id": "net-9", "name": "Responder", "category": "network", "version": "3.1.3", "description": "LLMNR, NBT-NS and MDNS poisoner for credential harvesting", "installed": True, "usageCount": 89},
+    {"id": "net-10", "name": "NetExec", "category": "network", "version": "1.1.0", "description": "Network service exploitation framework", "installed": True, "usageCount": 156},
+    # Web Application Security Tools
+    {"id": "web-1", "name": "Nuclei", "category": "web", "version": "3.1.4", "description": "Fast vulnerability scanner with 4000+ templates", "installed": True, "usageCount": 312},
+    {"id": "web-2", "name": "Gobuster", "category": "web", "version": "3.6", "description": "Directory, file, and DNS enumeration with intelligent wordlists", "installed": True, "usageCount": 278},
+    {"id": "web-3", "name": "FFuf", "category": "web", "version": "2.1.0", "description": "Fast web fuzzer with advanced filtering and parameter discovery", "installed": True, "usageCount": 256},
+    {"id": "web-4", "name": "SQLMap", "category": "web", "version": "1.7.12", "description": "Advanced automatic SQL injection testing with tamper scripts", "installed": True, "usageCount": 145},
+    {"id": "web-5", "name": "Nikto", "category": "web", "version": "2.5.0", "description": "Web server vulnerability scanner with comprehensive checks", "installed": True, "usageCount": 134},
+    {"id": "web-6", "name": "Dirsearch", "category": "web", "version": "0.4.3", "description": "Advanced directory and file discovery with enhanced logging", "installed": True, "usageCount": 187},
+    {"id": "web-7", "name": "Feroxbuster", "category": "web", "version": "2.10.1", "description": "Recursive content discovery with intelligent filtering", "installed": True, "usageCount": 198},
+    {"id": "web-8", "name": "HTTPx", "category": "web", "version": "1.3.7", "description": "Fast HTTP probing and technology detection", "installed": True, "usageCount": 234},
+    {"id": "web-9", "name": "Katana", "category": "web", "version": "1.0.4", "description": "Next-generation crawling and spidering with JavaScript support", "installed": True, "usageCount": 167},
+    {"id": "web-10", "name": "Dalfox", "category": "web", "version": "2.9.1", "description": "Advanced XSS vulnerability scanning with DOM analysis", "installed": True, "usageCount": 134},
+    {"id": "web-11", "name": "WPScan", "category": "web", "version": "3.8.25", "description": "WordPress security scanner with vulnerability database", "installed": True, "usageCount": 123},
+    {"id": "web-12", "name": "Arjun", "category": "web", "version": "2.2.1", "description": "HTTP parameter discovery with intelligent fuzzing", "installed": True, "usageCount": 98},
+    # Binary Analysis & Reverse Engineering Tools
+    {"id": "bin-1", "name": "Ghidra", "category": "binary", "version": "10.4", "description": "NSA software reverse engineering suite with headless analysis", "installed": True, "usageCount": 89},
+    {"id": "bin-2", "name": "Radare2", "category": "binary", "version": "5.8.8", "description": "Advanced reverse engineering framework with comprehensive analysis", "installed": True, "usageCount": 76},
+    {"id": "bin-3", "name": "GDB", "category": "binary", "version": "13.2", "description": "GNU Debugger with Python scripting and exploit development support", "installed": True, "usageCount": 112},
+    {"id": "bin-4", "name": "Pwntools", "category": "binary", "version": "4.11.1", "description": "CTF framework and exploit development library", "installed": True, "usageCount": 189},
+    {"id": "bin-5", "name": "Checksec", "category": "binary", "version": "2.6.0", "description": "Binary security property checker with comprehensive analysis", "installed": True, "usageCount": 134},
+    {"id": "bin-6", "name": "ROPgadget", "category": "binary", "version": "6.8", "description": "ROP/JOP gadget finder with advanced search capabilities", "installed": True, "usageCount": 54},
+    # Cloud & Container Security Tools
+    {"id": "cloud-1", "name": "Prowler", "category": "cloud", "version": "3.12.1", "description": "AWS/Azure/GCP security assessment with compliance checks", "installed": True, "usageCount": 67},
+    {"id": "cloud-2", "name": "Trivy", "category": "cloud", "version": "0.48.3", "description": "Comprehensive vulnerability scanner for containers and IaC", "installed": True, "usageCount": 98},
+    {"id": "cloud-3", "name": "Kube-Hunter", "category": "cloud", "version": "0.6.8", "description": "Kubernetes penetration testing with active/passive modes", "installed": True, "usageCount": 54},
+    {"id": "cloud-4", "name": "Scout Suite", "category": "cloud", "version": "5.13.0", "description": "Multi-cloud security auditing for AWS, Azure, GCP", "installed": True, "usageCount": 56},
+    {"id": "cloud-5", "name": "Checkov", "category": "cloud", "version": "3.1.67", "description": "Infrastructure as code security scanning", "installed": True, "usageCount": 123},
+    # CTF & Forensics Tools
+    {"id": "ctf-1", "name": "Volatility3", "category": "ctf", "version": "2.5.0", "description": "Next-generation memory forensics with enhanced analysis", "installed": True, "usageCount": 43},
+    {"id": "ctf-2", "name": "John the Ripper", "category": "ctf", "version": "1.9.0", "description": "Password cracker with custom rules and advanced modes", "installed": True, "usageCount": 128},
+    {"id": "ctf-3", "name": "Hashcat", "category": "ctf", "version": "6.2.6", "description": "GPU-accelerated password recovery with 300+ hash types", "installed": True, "usageCount": 156},
+    {"id": "ctf-4", "name": "Steghide", "category": "ctf", "version": "0.5.1", "description": "Steganography detection and extraction with password support", "installed": True, "usageCount": 78},
+    {"id": "ctf-5", "name": "CyberChef", "category": "ctf", "version": "10.5.0", "description": "Web-based analysis toolkit for encoding and encryption", "installed": True, "usageCount": 234},
+    # OSINT Tools
+    {"id": "osint-1", "name": "TheHarvester", "category": "osint", "version": "4.5.1", "description": "Email and subdomain harvesting from multiple sources", "installed": True, "usageCount": 187},
+    {"id": "osint-2", "name": "Sherlock", "category": "osint", "version": "0.14.3", "description": "Username investigation across 400+ social networks", "installed": True, "usageCount": 92},
+    {"id": "osint-3", "name": "Recon-ng", "category": "osint", "version": "5.1.2", "description": "Web reconnaissance framework with modular architecture", "installed": True, "usageCount": 123},
+    {"id": "osint-4", "name": "Shodan CLI", "category": "osint", "version": "1.29.1", "description": "Internet-connected device search with advanced filtering", "installed": True, "usageCount": 156},
+    {"id": "osint-5", "name": "TruffleHog", "category": "osint", "version": "3.63.1", "description": "Git repository secret scanning with entropy analysis", "installed": True, "usageCount": 134},
+    # Password & Authentication Tools
+    {"id": "pwd-1", "name": "Hydra", "category": "password", "version": "9.5", "description": "Network login cracker supporting 50+ protocols", "installed": True, "usageCount": 167},
+    {"id": "pwd-2", "name": "Medusa", "category": "password", "version": "2.2", "description": "Speedy, parallel, modular login brute-forcer", "installed": True, "usageCount": 89},
+    {"id": "pwd-3", "name": "Mimikatz", "category": "password", "version": "2.2.0", "description": "Windows credential extraction tool", "installed": True, "usageCount": 156},
+    {"id": "pwd-4", "name": "Impacket", "category": "password", "version": "0.11.0", "description": "Python network protocol toolkit", "installed": True, "usageCount": 178},
+]
+
+# Active scans storage
+_active_scans = {}
+_scan_counter = 0
+
+# Discovered vulnerabilities storage
+_vulnerabilities = []
+_vuln_counter = 0
+
+@app.route("/api/tools/list", methods=["GET"])
+def list_tools():
+    """List all security tools"""
+    try:
+        category = request.args.get("category", None)
+        installed_only = request.args.get("installed", "false").lower() == "true"
+        
+        with _tools_lock:
+            filtered_tools = _security_tools.copy()
+        
+        if category and category != "all":
+            filtered_tools = [t for t in filtered_tools if t["category"] == category]
+        
+        if installed_only:
+            filtered_tools = [t for t in filtered_tools if t.get("installed", False)]
+        
+        logger.info(f"📋 Listed {len(filtered_tools)} tools")
+        return jsonify({
+            "success": True,
+            "data": filtered_tools,
+            "count": len(filtered_tools),
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error listing tools: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/tools/<tool_id>", methods=["GET"])
+def get_tool(tool_id: str):
+    """Get details for a specific tool"""
+    try:
+        with _tools_lock:
+            tool = next((t for t in _security_tools if t["id"] == tool_id), None)
+        
+        if not tool:
+            return jsonify({"success": False, "error": "Tool not found"}), 404
+        
+        return jsonify({
+            "success": True,
+            "data": tool,
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error getting tool {tool_id}: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/tools/<tool_id>/execute", methods=["POST"])
+def execute_tool(tool_id: str):
+    """Execute a security tool"""
+    try:
+        data = request.get_json() or {}
+        target = data.get("target", "")
+        parameters = data.get("parameters", {})
+        
+        with _tools_lock:
+            tool = next((t for t in _security_tools if t["id"] == tool_id), None)
+        
+        if not tool:
+            return jsonify({"success": False, "error": "Tool not found"}), 404
+        
+        # Update usage count
+        with _tools_lock:
+            for t in _security_tools:
+                if t["id"] == tool_id:
+                    t["usageCount"] = t.get("usageCount", 0) + 1
+                    break
+        
+        execution_id = f"exec-{datetime.now().timestamp()}"
+        
+        logger.info(f"🔧 Executing tool {tool['name']} on target: {target}")
+        return jsonify({
+            "success": True,
+            "executionId": execution_id,
+            "tool": tool["name"],
+            "target": target,
+            "status": "started",
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error executing tool {tool_id}: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/scans/list", methods=["GET"])
+def list_scans():
+    """List all scans"""
+    try:
+        status_filter = request.args.get("status", None)
+        
+        with _scans_lock:
+            scans_list = list(_active_scans.values())
+        
+        if status_filter:
+            scans_list = [s for s in scans_list if s.get("status") == status_filter]
+        
+        # Sort by start time (most recent first)
+        scans_list.sort(key=lambda x: x.get("startTime", ""), reverse=True)
+        
+        logger.info(f"📊 Listed {len(scans_list)} scans")
+        return jsonify({
+            "success": True,
+            "data": scans_list,
+            "count": len(scans_list),
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error listing scans: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/scans/create", methods=["POST"])
+def create_scan():
+    """Create a new security scan"""
+    global _scan_counter
+    try:
+        data = request.get_json() or {}
+        target = data.get("target", "")
+        scan_type = data.get("type", "standard")
+        selected_tools = data.get("selectedTools", [])
+        
+        if not target:
+            return jsonify({"success": False, "error": "Target is required"}), 400
+        
+        _scan_counter += 1
+        scan_id = f"scan-{_scan_counter}-{int(datetime.now().timestamp())}"
+        
+        new_scan = {
+            "id": scan_id,
+            "target": target,
+            "type": scan_type.capitalize(),
+            "status": "running",
+            "progress": 0,
+            "currentPhase": "Phase 1: Reconnaissance",
+            "phases": [
+                {"name": "Phase 1: Reconnaissance", "status": "running", "progress": 0},
+                {"name": "Phase 2: Scanning", "status": "pending", "progress": 0},
+                {"name": "Phase 3: Vulnerability Testing", "status": "pending", "progress": 0},
+            ],
+            "startTime": datetime.now().isoformat(),
+            "duration": 0,
+            "vulnerabilitiesFound": 0,
+            "toolsUsed": selected_tools if selected_tools else ["Nmap", "Nuclei", "Gobuster"],
+        }
+        
+        with _scans_lock:
+            _active_scans[scan_id] = new_scan
+        
+        logger.info(f"🎯 Created new scan {scan_id} for target: {target}")
+        return jsonify({
+            "success": True,
+            "data": new_scan,
+            "message": f"Scan started for {target}",
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error creating scan: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/scans/<scan_id>", methods=["GET"])
+def get_scan(scan_id: str):
+    """Get details for a specific scan"""
+    try:
+        with _scans_lock:
+            scan = _active_scans.get(scan_id)
+        
+        if not scan:
+            return jsonify({"success": False, "error": "Scan not found"}), 404
+        
+        return jsonify({
+            "success": True,
+            "data": scan,
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error getting scan {scan_id}: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/scans/<scan_id>", methods=["DELETE"])
+def delete_scan(scan_id: str):
+    """Delete a scan"""
+    try:
+        with _scans_lock:
+            if scan_id not in _active_scans:
+                return jsonify({"success": False, "error": "Scan not found"}), 404
+            del _active_scans[scan_id]
+        
+        logger.info(f"🗑️ Deleted scan {scan_id}")
+        return jsonify({
+            "success": True,
+            "message": f"Scan {scan_id} deleted",
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error deleting scan {scan_id}: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/scans/<scan_id>/progress", methods=["GET"])
+def get_scan_progress(scan_id: str):
+    """Get progress for a specific scan"""
+    try:
+        with _scans_lock:
+            scan = _active_scans.get(scan_id)
+        
+        if not scan:
+            return jsonify({"success": False, "error": "Scan not found"}), 404
+        
+        return jsonify({
+            "success": True,
+            "data": {
+                "progress": scan.get("progress", 0),
+                "currentPhase": scan.get("currentPhase", ""),
+                "status": scan.get("status", "unknown"),
+                "phases": scan.get("phases", []),
+            },
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error getting scan progress {scan_id}: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/scans/<scan_id>/results", methods=["GET"])
+def get_scan_results(scan_id: str):
+    """Get results for a completed scan"""
+    try:
+        with _scans_lock:
+            scan = _active_scans.get(scan_id)
+        
+        if not scan:
+            return jsonify({"success": False, "error": "Scan not found"}), 404
+        
+        # Return scan results
+        return jsonify({
+            "success": True,
+            "data": {
+                "target": scan.get("target", ""),
+                "status": scan.get("status", "unknown"),
+                "vulnerabilitiesFound": scan.get("vulnerabilitiesFound", 0),
+                "toolsUsed": scan.get("toolsUsed", []),
+                "duration": scan.get("duration", 0),
+            },
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error getting scan results {scan_id}: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/vulnerabilities/list", methods=["GET"])
+def list_vulnerabilities():
+    """List all discovered vulnerabilities"""
+    try:
+        severity_filter = request.args.get("severity", None)
+        status_filter = request.args.get("status", None)
+        
+        with _vulnerabilities_lock:
+            vulns_list = _vulnerabilities.copy()
+        
+        if severity_filter:
+            vulns_list = [v for v in vulns_list if v.get("severity") == severity_filter]
+        
+        if status_filter:
+            vulns_list = [v for v in vulns_list if v.get("status") == status_filter]
+        
+        # Sort by severity (critical first) and then by discovery time
+        severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+        vulns_list.sort(key=lambda x: (severity_order.get(x.get("severity", "info"), 5), x.get("discoveredAt", "")))
+        
+        logger.info(f"🔍 Listed {len(vulns_list)} vulnerabilities")
+        return jsonify({
+            "success": True,
+            "data": vulns_list,
+            "count": len(vulns_list),
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error listing vulnerabilities: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/vulnerabilities/<vuln_id>", methods=["GET"])
+def get_vulnerability(vuln_id: str):
+    """Get details for a specific vulnerability"""
+    try:
+        with _vulnerabilities_lock:
+            vuln = next((v for v in _vulnerabilities if v["id"] == vuln_id), None)
+        
+        if not vuln:
+            return jsonify({"success": False, "error": "Vulnerability not found"}), 404
+        
+        return jsonify({
+            "success": True,
+            "data": vuln,
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error getting vulnerability {vuln_id}: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/vulnerabilities/<vuln_id>", methods=["PUT"])
+def update_vulnerability(vuln_id: str):
+    """Update a vulnerability"""
+    try:
+        data = request.get_json() or {}
+        
+        with _vulnerabilities_lock:
+            vuln = next((v for v in _vulnerabilities if v["id"] == vuln_id), None)
+            if not vuln:
+                return jsonify({"success": False, "error": "Vulnerability not found"}), 404
+            
+            # Update allowed fields
+            allowed_fields = ["status", "remediation", "notes"]
+            for field in allowed_fields:
+                if field in data:
+                    vuln[field] = data[field]
+        
+        logger.info(f"📝 Updated vulnerability {vuln_id}")
+        return jsonify({
+            "success": True,
+            "data": vuln,
+            "message": "Vulnerability updated",
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error updating vulnerability {vuln_id}: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/vulnerabilities/<vuln_id>/remediation", methods=["POST"])
+def get_remediation(vuln_id: str):
+    """Get remediation guidance for a vulnerability"""
+    try:
+        with _vulnerabilities_lock:
+            vuln = next((v for v in _vulnerabilities if v["id"] == vuln_id), None)
+        
+        if not vuln:
+            return jsonify({"success": False, "error": "Vulnerability not found"}), 404
+        
+        # Generate remediation guidance based on vulnerability type
+        severity = vuln.get("severity", "medium")
+        title = vuln.get("title", "").lower()
+        
+        remediation_steps = []
+        if "sql injection" in title:
+            remediation_steps = [
+                "Use parameterized queries or prepared statements",
+                "Implement input validation and sanitization",
+                "Apply the principle of least privilege for database accounts",
+                "Enable web application firewall (WAF) rules"
+            ]
+        elif "xss" in title or "cross-site scripting" in title:
+            remediation_steps = [
+                "Implement output encoding/escaping",
+                "Use Content Security Policy (CSP) headers",
+                "Validate and sanitize all user inputs",
+                "Use HTTPOnly and Secure flags for cookies"
+            ]
+        elif "ssrf" in title:
+            remediation_steps = [
+                "Validate and sanitize all URLs",
+                "Use allowlists for permitted destinations",
+                "Disable unnecessary URL schemes",
+                "Implement network segmentation"
+            ]
+        else:
+            remediation_steps = [
+                "Review and patch affected components",
+                "Implement security best practices",
+                "Monitor for exploitation attempts",
+                "Consider implementing additional security controls"
+            ]
+        
+        return jsonify({
+            "success": True,
+            "data": {
+                "vulnerabilityId": vuln_id,
+                "severity": severity,
+                "remediationSteps": remediation_steps,
+                "priority": "high" if severity in ["critical", "high"] else "medium",
+            },
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error getting remediation for {vuln_id}: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/dashboard/metrics", methods=["GET"])
+def get_dashboard_metrics():
+    """Get dashboard metrics for the overview page"""
+    try:
+        # Calculate real metrics from current state
+        with _scans_lock:
+            active_scans = len([s for s in _active_scans.values() if s.get("status") == "running"])
+            total_scans = len(_active_scans)
+        
+        with _vulnerabilities_lock:
+            total_vulns = len(_vulnerabilities)
+        
+        with _agents_lock:
+            online_agents = len([a for a in _available_agents.values() if a.get("status") == "active"])
+        
+        with _tools_lock:
+            tools_used = sum(t.get("usageCount", 0) for t in _security_tools)
+        
+        metrics = {
+            "activeScans": active_scans,
+            "totalScans": total_scans,
+            "toolsUsed": tools_used,
+            "vulnerabilitiesFound": total_vulns,
+            "projectsActive": 1,  # Placeholder - would need project storage
+            "agentsOnline": online_agents,
+        }
+        
+        logger.info(f"📊 Dashboard metrics: {active_scans} active scans, {total_vulns} vulns, {online_agents} agents online")
+        return jsonify({
+            "success": True,
+            "data": metrics,
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error getting dashboard metrics: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+# ============================================================================
 # SETTINGS & CONFIGURATION API ENDPOINTS
 # ============================================================================
 
