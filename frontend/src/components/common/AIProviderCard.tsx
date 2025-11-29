@@ -81,15 +81,16 @@ const AIProviderCard = ({
     { id: 'all', name: 'All Providers' },
   ]);
   const [modelsLoading, setModelsLoading] = useState(false);
-  const [modelsSource, setModelsSource] = useState<'static' | 'openrouter'>('static');
+  const [modelsSource, setModelsSource] = useState<'static' | 'openrouter' | 'openai' | 'anthropic'>('static');
 
-  // Load AI models when API key or provider filter changes
+  // Load AI models when API key, provider type, or provider filter changes
   const loadModels = useCallback(async () => {
     setModelsLoading(true);
     try {
       const response = await apiClient.getAIModels(
         provider.apiKey || undefined,
-        provider.providerFilter || 'all'
+        provider.providerFilter || 'all',
+        provider.providerType || 'openrouter'
       );
       if (response.success) {
         const data = response as {
@@ -100,7 +101,9 @@ const AIProviderCard = ({
         };
         setDynamicModels(data.models || []);
         setAvailableProviders(data.providers || [{ id: 'all', name: 'All Providers' }]);
-        setModelsSource(data.source === 'openrouter' ? 'openrouter' : 'static');
+        // Set the source from the API response
+        const source = data.source || 'static';
+        setModelsSource(source as 'static' | 'openrouter' | 'openai' | 'anthropic');
       }
     } catch (error) {
       console.error('Failed to load AI models:', error);
@@ -108,7 +111,7 @@ const AIProviderCard = ({
     } finally {
       setModelsLoading(false);
     }
-  }, [provider.apiKey, provider.providerFilter]);
+  }, [provider.apiKey, provider.providerFilter, provider.providerType]);
 
   useEffect(() => {
     loadModels();
@@ -132,6 +135,15 @@ const AIProviderCard = ({
     }
     if (modelsSource === 'openrouter') {
       return `${dynamicModels.length} models loaded from OpenRouter API`;
+    }
+    if (modelsSource === 'openai') {
+      return `${dynamicModels.length} models loaded from OpenAI API`;
+    }
+    if (modelsSource === 'anthropic') {
+      return `${dynamicModels.length} Anthropic models available`;
+    }
+    if (provider.providerType === 'custom') {
+      return 'Enter your model ID manually for custom provider';
     }
     return 'Using default model list (add API key for full list)';
   };

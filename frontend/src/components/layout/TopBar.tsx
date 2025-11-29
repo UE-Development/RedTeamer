@@ -1,6 +1,7 @@
 /**
  * Top Navigation Bar
  * Mobile-optimized with responsive elements
+ * Fluid sizing adapts to screen width
  */
 
 import { useState } from 'react';
@@ -18,6 +19,8 @@ import {
   ListItemIcon,
   ListItemText,
   Avatar,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import NotificationsIcon from '@mui/icons-material/Notifications';
@@ -34,6 +37,10 @@ interface TopBarProps {
 
 const TopBar = ({ onMenuClick, drawerWidth, open }: TopBarProps) => {
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isLargeScreen = useMediaQuery(theme.breakpoints.up('xl'));
+  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
+  
   const notifications = useAppSelector((state) => state.notifications.notifications);
   const unreadCount = notifications.length;
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -66,6 +73,12 @@ const TopBar = ({ onMenuClick, drawerWidth, open }: TopBarProps) => {
     navigate('/settings');
   };
 
+  // Responsive toolbar height
+  const toolbarHeight = isSmallScreen ? 56 : 64;
+  
+  // Responsive avatar size
+  const avatarSize = isLargeScreen ? 36 : isSmallScreen ? 28 : 32;
+
   return (
     <AppBar
       position="fixed"
@@ -77,20 +90,29 @@ const TopBar = ({ onMenuClick, drawerWidth, open }: TopBarProps) => {
         ml: { md: open ? `${drawerWidth}px` : 0 },
         transition: (theme) =>
           theme.transitions.create(['width', 'margin'], {
-            easing: theme.transitions.easing.sharp,
-            duration: theme.transitions.duration.leavingScreen,
+            easing: theme.transitions.easing.easeInOut,
+            duration: theme.transitions.duration.standard,
           }),
       }}
     >
-      <Toolbar sx={{ px: { xs: 1, sm: 2 } }}>
+      <Toolbar sx={{ 
+        px: { xs: 1, sm: 2, lg: 3 },
+        minHeight: { xs: 56, sm: 64 },
+        height: toolbarHeight,
+      }}>
+        {/* Only show menu icon on mobile */}
         <IconButton
           color="inherit"
           aria-label="open drawer"
           edge="start"
           onClick={onMenuClick}
-          sx={{ mr: { xs: 1, sm: 2 } }}
+          sx={{ 
+            mr: { xs: 0.5, sm: 1.5 }, 
+            display: { md: 'none' },
+            p: { xs: 1, sm: 1.5 },
+          }}
         >
-          <MenuIcon />
+          <MenuIcon sx={{ fontSize: { xs: 22, sm: 24 } }} />
         </IconButton>
 
         <Typography
@@ -101,7 +123,8 @@ const TopBar = ({ onMenuClick, drawerWidth, open }: TopBarProps) => {
             flexGrow: 0, 
             fontWeight: 700, 
             fontFamily: "'Roboto', sans-serif",
-            fontSize: { xs: '1rem', sm: '1.25rem' },
+            fontSize: { xs: '0.95rem', sm: '1.1rem', md: '1.25rem', lg: '1.35rem' },
+            letterSpacing: { xs: 0, sm: 0.5 },
           }}
         >
           HexStrike AI
@@ -111,10 +134,11 @@ const TopBar = ({ onMenuClick, drawerWidth, open }: TopBarProps) => {
         <Typography
           variant="body2"
           sx={{
-            ml: { xs: 1, sm: 2 },
+            ml: { xs: 0.5, sm: 1, md: 2 },
             color: 'primary.light',
             fontWeight: 600,
             fontFamily: "'JetBrains Mono', monospace",
+            fontSize: { sm: '0.75rem', md: '0.85rem', lg: '0.9rem' },
             display: { xs: 'none', sm: 'block' },
           }}
         >
@@ -123,25 +147,41 @@ const TopBar = ({ onMenuClick, drawerWidth, open }: TopBarProps) => {
 
         <Box sx={{ flexGrow: 1 }} />
 
-        <IconButton color="inherit" sx={{ mr: { xs: 0.5, sm: 1 } }}>
+        {/* Notification icon with responsive sizing */}
+        <IconButton 
+          color="inherit" 
+          sx={{ 
+            mr: { xs: 0.5, sm: 1, lg: 1.5 },
+            p: { xs: 0.75, sm: 1 },
+          }}
+        >
           <Badge badgeContent={unreadCount} color="error">
-            <NotificationsIcon />
+            <NotificationsIcon sx={{ fontSize: { xs: 20, sm: 22, lg: 24 } }} />
           </Badge>
         </IconButton>
 
+        {/* User avatar with responsive sizing */}
         <IconButton
           color="inherit"
           onClick={handleMenuOpen}
           aria-controls={menuOpen ? 'account-menu' : undefined}
           aria-haspopup="true"
           aria-expanded={menuOpen ? 'true' : undefined}
+          sx={{ p: { xs: 0.5, sm: 0.75 } }}
         >
-          <Avatar sx={{ width: { xs: 28, sm: 32 }, height: { xs: 28, sm: 32 }, bgcolor: 'primary.dark' }}>
+          <Avatar 
+            sx={{ 
+              width: avatarSize, 
+              height: avatarSize, 
+              bgcolor: 'primary.dark',
+              fontSize: { xs: '0.8rem', sm: '0.9rem', lg: '1rem' },
+            }}
+          >
             {userInfo.name?.charAt(0) || 'U'}
           </Avatar>
         </IconButton>
 
-        {/* User Menu */}
+        {/* User Menu with responsive sizing */}
         <Menu
           id="account-menu"
           anchorEl={anchorEl}
@@ -151,7 +191,7 @@ const TopBar = ({ onMenuClick, drawerWidth, open }: TopBarProps) => {
           anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
           PaperProps={{
             sx: {
-              minWidth: { xs: 200, sm: 220 },
+              minWidth: { xs: 200, sm: 220, lg: 240 },
               mt: 1,
             },
           }}
@@ -165,20 +205,20 @@ const TopBar = ({ onMenuClick, drawerWidth, open }: TopBarProps) => {
             </Typography>
           </Box>
           <Divider />
-          <MenuItem onClick={handleMenuClose}>
+          <MenuItem onClick={handleMenuClose} sx={{ py: { xs: 1, sm: 1.25 } }}>
             <ListItemIcon>
               <PersonIcon fontSize="small" />
             </ListItemIcon>
             <ListItemText>Profile</ListItemText>
           </MenuItem>
-          <MenuItem onClick={handleSettings}>
+          <MenuItem onClick={handleSettings} sx={{ py: { xs: 1, sm: 1.25 } }}>
             <ListItemIcon>
               <SettingsIcon fontSize="small" />
             </ListItemIcon>
             <ListItemText>Settings</ListItemText>
           </MenuItem>
           <Divider />
-          <MenuItem onClick={handleLogout} sx={{ color: 'error.main' }}>
+          <MenuItem onClick={handleLogout} sx={{ color: 'error.main', py: { xs: 1, sm: 1.25 } }}>
             <ListItemIcon>
               <LogoutIcon fontSize="small" color="error" />
             </ListItemIcon>
